@@ -313,7 +313,7 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
         
         for tsn in tests:
             name_good = tsn + '_' + good_side
-            name_bad = tsn + '_' + good_side
+            name_bad = tsn + '_' + bad_side
             
             # we check rate when both sides succedds. These are not good outcomes
             two_side_succ = ( dfc[name_good] > tcrit[name_good].values[0] ) & ( dfc[name_bad] > tcrit[name_bad].values[0] )
