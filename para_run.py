@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from tqdm import tqdm
+from typing import Dict
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -12,24 +13,17 @@ import time
 from dask.distributed import Client, progress
 
 from survival import evaluate
-from generate_configurations import generate
+from configurations import load_configurations
     
+
 class ParaRun :
-    def __init__(self, gen_func, eval_func, params='params.yaml') :
-        if type(params) == str :
-            param_file = params
-            logging.info(f" Reading parameters from {param_file}.")
-            with open(param_file) as file:
-                self._params = yaml.load(file, Loader=yaml.FullLoader)
-        else :
-            self._params = params
-
+    def __init__(self, eval_func, params='params.yaml') :
+        
         self._out = pd.DataFrame()
-        self._npartitions = 4
         self._func = eval_func
-
-        self._conf = pd.DataFrame(gen_func(self._params['variables']))
-        logging.info(f"Generated {len(self._conf)} configurations.")
+        
+        self._configurations = load_configurations(params)
+        logging.info(f"Found {len(self._configurations)} configurations.")
     
         
     def run(self):
@@ -45,13 +39,13 @@ class ParaRun :
         results = []
         job_ids = []
         itr = 0
-        for params in tqdm(self._conf.iterrows()) :
-            r = self._func(*params[1])
+        for params in tqdm(self._configurations.itertuples(index=False)):
+            r = self._func(*params)
             results.append(r)
             itr += 1
             job_ids += [itr]
         
-        self._out = self._conf.join(pd.DataFrame(results), how='left')
+        self._out = self._configurations.join(pd.DataFrame(results), how='left')
         logging.info(f" Completed.")
 
     def Dask_run(self, client) :
@@ -68,14 +62,14 @@ class ParaRun :
 
         logging.info(" Mapping to futures...")
 
-        variables = self._conf.columns.tolist()
-        self._conf.loc[:,'job_id'] = 'null'
+        variables = self._configurations.columns.tolist()
+        self._configurations.loc[:,'job_id'] = 'null'
         futures=[]
 
-        df_vars = self._conf.filter(items=variables)
+        df_vars = self._configurations.filter(items=variables)
         for r in df_vars.iterrows() :
             fut = client.submit(self._func, **r[1])
-            self._conf.loc[r[0], 'job_id'] = fut.key
+            self._configurations.loc[r[0], 'job_id'] = fut.key
             futures += [fut]
         logging.info(" Gathering...")
         
@@ -86,14 +80,14 @@ class ParaRun :
         logging.info(" Terminating client...")
         client.close()
     
-        self._out = self._conf.set_index('job_id').join(results, how='left')
+        self._out = self._configurations.set_index('job_id').join(results, how='left')
         
 
     def to_file(self, filename="results.csv") :
         if self._out.empty :
             logging.warning(" No output." 
             "Did the experiment complete running?")
-        if self._conf.empty :
+        if self._configurations.empty :
             logging.warning(" No configuration detected."
             "Did call gen_conf_table() ")
 
@@ -121,11 +115,11 @@ def main() :
             logging.info(f" Connecting to existing cluster at {args.address}")
             client = Client(args.address)
         logging.info(f" Dashboard at {client.dashboard_link}")
-        exper = ParaRun(generate, evaluate, args.p)
+        exper = ParaRun(evaluate, args.p)
         exper.Dask_run(client)
             
     else :
-        exper = ParaRun(generate, evaluate, args.p)
+        exper = ParaRun(evaluate, args.p)
         exper.run()
 
     output_filename=args.o

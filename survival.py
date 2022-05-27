@@ -9,7 +9,6 @@ from multitest import MultiTest
 from tqdm import tqdm
 
 
-
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
@@ -162,7 +161,7 @@ def atmoic_experiment(T, N1, N2, eps, mu):
     :mu:   intensity of non-null events
     
     """
-    
+
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
     return evaluate_test_stats(Nt1, Nt2)
 
@@ -191,7 +190,7 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
     if alternative == 'both' or alternative == 'greater':
         
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
-        test_results['log_rank_greater'] = lr
+        test_results['log_rank_greater'] = -np.log(lr_pval) # large values are significant
 
         pvals_greater = mutli_pvals(Nt1, Nt2, alternative='greater', 
             randomize=randomize)
@@ -207,7 +206,7 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
 
     if alternative == 'both' or alternative == 'less':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
-        test_results['log_rank_less'] = lr
+        test_results['log_rank_less'] = -np.log(lr_pval) # large values are significant
 
         pvals_greater = mutli_pvals(Nt1, Nt2, alternative='less', 
             randomize=randomize)
@@ -290,41 +289,49 @@ def run_many_experiments(T, N1, N2, nMonte):
 
 def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
     """
-
     Args:
     -----
     :df1:   results from experiments under alternative 
     :df0:   results from experiments under null
     :out_filename:   file/path name to write to
+
     """
 
-    tests = ['Logrank', 'minP', 'HC', 'BJ', 'wilcoxon', 'Fisher']
+    params = ['itr', 'T', 'N1', 'N2' 'r', 'beta']
+    tests = ['log_rank', 'hc', 'min_p', 'berk_jones', 'wilcoxon', 'fisher']
+    tests_vars = [c for c in df0.columns if c not in params and 'Unnamed' not in c]
+
+    global_params = ['T', 'N1', 'N2']
+    tcrit = df0.groupby(global_params).agg(q95)
 
     good_side = 'greater'
     bad_side = 'less'
-    
-    for tsn in tests:
 
-        tcrit = 0[tsn].values[0]
+    for c in df1.groupby(global_params):
+        print(f"Analyzing the case (T, N1, N2) = {c[0]}")
+        dfc = c[1]
+        
+        for tsn in tests:
+            name_good = tsn + '_' + good_side
+            name_bad = tsn + '_' + good_side
+            
+            # we check rate when both sides succedds. These are not good outcomes
+            two_side_succ = ( dfc[name_good] > tcrit[name_good].values[0] ) & ( dfc[name_bad] > tcrit[name_bad].values[0] )
+            print(f"{tsn}: both sides detected in {np.mean(two_side_succ)} of cases")
+            print("(you should be worried if this number is significantly larger than 0.05)")
 
-        # we check rate when both sides succedds. These are not good outcomes
-        two_side_succ = (df1[tsn + '_' + good_side] > tcrit) \
-                                & (df1[tsn + '_' + bd_side] > tcrit)
-        print(f"{tsn}: both sides detected in {np.mean(succ)} of cases")
-
-
-        mat = np.zeros((len(bb), len(mm), len(tests)))
-
-        for k,tsn in enumerate(tests):
+            bb = dfc['beta'].unique()
+            rr = dfc['r'].unique()
+            mat = np.zeros((len(bb), len(rr)))
             for i,beta in enumerate(bb):
-                for j,m in enumerate(mm):
-                    eps = T ** -beta   # sparsity rate
-                    dfc = df1[np.abs(df1.eps - eps) + np.abs(df1.mu - m) < 1e-10]
-                    tcrit = df0[tsn].values[0]
-                    succ = dfc[tsn] > tcrit
-                    mat[i,j,k] = np.mean(succ)
-                 
-            g = seaborn.heatmap(mat[:,::-1,k].T)
+                for j,r in enumerate(rr):
+                    dfs = dfc[(dfc['beta'] == beta) & (dfc['r'] == r) ]
+                    succ = dfs[name_good] > tcrit[name_good].values[0]
+                    mat[i,j] = np.mean(succ)
+
+
+            plt.figure()
+            g = seaborn.heatmap(mat[:,::-1].T)
             plt.title(f"{tsn} (power at .05 level)")
             g.set_xticklabels(bb)
             g.set_xlabel('sparsity')
@@ -333,44 +340,31 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
             g.set_yticklabels(np.round(rr[::-1],3))
             fn = out_filename + tsn + ".png"
             plt.savefig(fn)
-            plt.show()
+            print("here")
 
 
-def evaluate(itr, T, N, beta, r):
+def evaluate(itr, T, N1, N2, beta, r):
     """
     evalaute an atomic experiment
     """
     mu = 2 * r * np.log(T) / T
     eps = T ** (-beta)
-    N1 = N2 = N
 
-    Nt1, Nt2 = sample_survival_data(int(T), int(N1), int(N2), eps, mu)
+    Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
     return res
 
 
 def main():
 
-    T = 2000
-    N = 1000
-    N1 = N2 = N
-    nMonte = 10
-
-    df0 = simulate_null(T, N1, N2, nMonte)
-    df0.to_csv(f"null_T{T}_N{N}.csv")
-
-    df1 = run_many_experiments(T, N1, N2, nMonte)
-    df1.to_csv(f"alt_T{T}_N{N}.csv")
-
+    df = pd.read_csv('results.csv')
+    df0 = df[df.r == 0]
+    df1 = df[df.r > 0]
     illustrate_phase_diagrams(df1, df0)
-
 
 
 if __name__ == '__main__':
     main()
-# It makes sense intuitively that log-rank has power similar to Fisher and Wilcoxon, since all these tests known to have power against "dense" alternatives. 
-
-# In[ ]:
 
 
 

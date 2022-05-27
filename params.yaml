@@ -1,40 +1,44 @@
+names:  # order matter! must matches order received by `evalaute`
+  - 'itr'
+  - 'T'
+  - 'N1'
+  - 'N2'
+  - 'beta'
+  - 'r'
+  
+itr:
+  type: 'range(int)'
+  min: 1
+  max: 10
 
-variables:
-  names:  # order matter! must match order received by `evalaute`
-    - 'itr'
-    - 'T'
-    - 'N'
-    - 'beta'
-    - 'r'
-    
-  itr:
-    type: 'int_range'
-    min: 1
-    max: 100
+r: 
+  type: 'range(float)'
+  min: 0
+  max: 1.2
+  length: 13
 
-  r: 
-    type: 'range'
-    min: 0
-    max: 1.2
-    length: 13
+beta:
+  type: 'list(float)'
+  values: 
+    - .45
+    - .5
+    - .6
+    - .7
+    - .8
+    - .9
+    - .95
 
-  beta:
-    type: 'list'
-    values: 
-      - .45
-      - .5
-      - .6
-      - .7
-      - .8
-      - .9
-      - .95
+T: 
+  type: 'list(int)'
+  values:
+    - 2000
 
-  T: 
-    type: 'list'
-    values:
-      - 2000
+N1:
+  type: 'list(int)'
+  values:
+    - 1000
 
-  N:
-    type: 'list'
-    values:
-      - 1000
+N2:
+  type: 'list(int)'
+  values:
+    - 1000
