@@ -338,7 +338,7 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
             g.set_ylabel('intensity')
             #g.set_yticklabels(np.round(mm[::-1],3))
             g.set_yticklabels(np.round(rr[::-1],3))
-            fn = out_filename + tsn + ".png"
+            fn = out_filename + '_' + tsn + ".png"
             plt.savefig(fn)
             print("here")
 
