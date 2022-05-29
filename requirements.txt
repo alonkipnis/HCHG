@@ -1,0 +1,8 @@
+numpy
+pandas
+pyyaml
+tqdm
+dask[distributed]
+seaborn
+two-sample-binomial==0.0.2
+multiple-hypothesis-testing==0.1.01

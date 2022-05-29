@@ -16,11 +16,45 @@ from survival import evaluate
 from configurations import load_configurations
     
 
-class ParaRun :
-    def __init__(self, eval_func, params='params.yaml') :
+class ParaRun(object):
+    """
+    ParaRun module for running emberisingly parallelizable computational expriments
+    ParaRun receives an atomic experiment function and a table in which 
+    each row represnets one configuration of the expeirments. The atomic 
+    experiment function returns a dictionary representing the result of one 
+    experiments. All varaibles in an experiment's configuration and result are 
+    arranged as one row in ParaRun._out. 
+
+    Args:
+        atomic_experiment_function:   function comprising a single experiment
+                                      it returns a dictionary
+        params:    experiment configurations. Can be one of: 
+        - 'CSV' file containing the table configurations
+        - 'YML' file containing instructions for generating a table of configurations
+        - Python dictionary containing instructions for generating a table of configurations
+        
+    Methods:
+        run:   apply atomic expriment function to each row in configuration table and stores
+            the results as a large table in which each row contains configuration varaibles
+            and the result of the experiment involving this configuration
+        Dask_run:   same as ParaRun.run, but use Dask.distributed scaling manager 
+        to_file:   store the results to a CSV file
+
+
+    Examples:
+        import numpy as np
+
+        atomic_experiment_function = lambda x,y : np.sqrt(x**2 + y**2)
+        configuration_dict = {'names'}
+
+        $ 
+
+
+    """
+    def __init__(self, atomic_experiment_function, params='params.yaml') :
         
         self._out = pd.DataFrame()
-        self._func = eval_func
+        self._func = atomic_experiment_function
         
         self._configurations = load_configurations(params)
         logging.info(f"Found {len(self._configurations)} configurations.")
@@ -67,9 +101,11 @@ class ParaRun :
         futures=[]
 
         df_vars = self._configurations.filter(items=variables)
-        for r in df_vars.iterrows() :
-            fut = client.submit(self._func, **r[1])
-            self._configurations.loc[r[0], 'job_id'] = fut.key
+
+        for r in df_vars.itertuples():     # iterate of dataframe's rows
+            index, variables = r[0], r[1:] # r is a tuple (index, var1, var2, ...)
+            fut = client.submit(self._func, *variables)                        
+            self._configurations.loc[index, 'job_id'] = fut.key
             futures += [fut]
         logging.info(" Gathering...")
         
@@ -81,7 +117,6 @@ class ParaRun :
         client.close()
     
         self._out = self._configurations.set_index('job_id').join(results, how='left')
-        
 
     def to_file(self, filename="results.csv") :
         if self._out.empty :
@@ -111,6 +146,7 @@ def main() :
         if args.address == "" :
             logging.info(f" Starting a local cluster")
             client = Client()
+            print(client)
         else :
             logging.info(f" Connecting to existing cluster at {args.address}")
             client = Client(args.address)

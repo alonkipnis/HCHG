@@ -357,7 +357,7 @@ def evaluate(itr, T, N1, N2, beta, r):
 
 def main():
 
-    df = pd.read_csv('results.csv')
+    df = pd.read_csv('results/results.csv').filter(regex = '^((?!Unnamed).)*$')
     df0 = df[df.r == 0]
     df1 = df[df.r > 0]
     illustrate_phase_diagrams(df1, df0)
