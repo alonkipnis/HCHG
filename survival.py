@@ -1,25 +1,23 @@
-
 import numpy as np
 import pandas as pd
 import scipy
-import seaborn 
+import seaborn
 
 from twosample import binom_test_two_sided
 from multitest import MultiTest
 from tqdm import tqdm
 
-
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-plt.rcParams['figure.figsize'] =  [8, 6]
+
+plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
 from scipy.stats import poisson, binom, norm, hypergeom, uniform
-
 from sample_survival_data import *
 
 
-def log_rank_test(Nt1, Nt2, alternative = 'two-sided'):
+def log_rank_test(Nt1, Nt2, alternative='two-sided'):
     """
     log-rank test 
     We assume that len(Nt1) == len(Nt2), and that each
@@ -39,34 +37,29 @@ def log_rank_test(Nt1, Nt2, alternative = 'two-sided'):
     :z:       z score of the log-rank test
     :pvalue:  P-value
     """
-    
-    assert(len(Nt1) == len(Nt2))
-    T = len(Nt1) - 1
 
-    e0 = np.zeros(T)
-    var0 = np.zeros(T)
+    assert (len(Nt1) == len(Nt2))
 
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
-    
+
     Nt = Nt2 + Nt1
     e0 = Nt2[:-1] * (Ot1 + Ot2) / Nt[:-1]
-    var0 = e0 * ( (Nt[:-1] - (Ot1 + Ot2)) /  Nt[:-1] ) * ( Nt1[:-1] / (Nt[:-1] - 1) )
-    
-    z = np.sum(Ot2 - e0) / np.sqrt(np.sum(var0))
+    var0 = e0 * ((Nt[:-1] - (Ot1 + Ot2)) / Nt[:-1]) * (Nt1[:-1] / (Nt[:-1] - 1))
 
+    z = np.sum(Ot2 - e0) / np.sqrt(np.sum(var0))
 
     if alternative == 'greater':
         pval = norm.sf(z)
     elif alternative == 'less':
         pval = norm.cdf(z)
     else:
-        pval = 2*norm.cdf(-np.abs(z))
+        pval = 2 * norm.cdf(-np.abs(z))
 
     return z, pval
 
 
-def hypergeom_test(k, M, n, N, alternative = 'greater', randomize=False):
+def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
     Exact hypergeometric test
     
@@ -83,18 +76,17 @@ def hypergeom_test(k, M, n, N, alternative = 'greater', randomize=False):
     Returns:
         Test's P-value
     """
-    
+
     if randomize:
         U = uniform.rvs(size=len(k))
     else:
         U = 0
-        
-    if alternative=='greater':
-        return hypergeom.sf(k, M, n, N) + U * hypergeom.pmf(k, M, n, N)
-    if alternative=='less':
-        return hypergeom.cdf(k-1, M, n, N) + U * hypergeom.pmf(k, M, n, N)
-    raise ValueError("two-sided alternative is not available yet")
 
+    if alternative == 'greater':
+        return hypergeom.sf(k, M, n, N) + U * hypergeom.pmf(k, M, n, N)
+    if alternative == 'less':
+        return hypergeom.cdf(k - 1, M, n, N) + U * hypergeom.pmf(k, M, n, N)
+    raise ValueError("two-sided alternative is not available yet")
 
 
 def q95(x):
@@ -107,9 +99,8 @@ def q95(x):
         return pd.Series.quantile(x, .95)
 
 
-
 def mutli_pvals(Nt1, Nt2, test='hypergeom',
- randomize=True, alternative='greater'):
+                randomize=True, alternative='greater'):
     """
     Compute P-values from the pair list of coutns in the two groups.
     We have one p-value per event time.
@@ -127,25 +118,24 @@ def mutli_pvals(Nt1, Nt2, test='hypergeom',
     Return:
         P-values 
     """
-    
-    assert(len(Nt1) == len(Nt2))
-    
+
+    assert (len(Nt1) == len(Nt2))
+
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     Nt = Nt2 + Nt1
-    
+
     if test == 'binomial':
         n = Ot1 + Ot2
         p = Nt2[:-1] / Nt[:-1]
         x = Ot2
-        pvals = binom_test_two_sided(x, n, p, 
-                            randomize=randomize, alternative=alternative)
+        pvals = binom_test_two_sided(x, n, p,
+                                     randomize=randomize, alternative=alternative)
     elif test == 'hypergeom':
         pvals = hypergeom_test(Ot2, Nt[:-1], Nt2[:-1], Ot1 + Ot2,
-                           randomize=randomize, alternative=alternative)
+                               randomize=randomize, alternative=alternative)
 
     return pvals
-
 
 
 def atmoic_experiment(T, N1, N2, eps, mu):
@@ -182,63 +172,60 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
     """
 
     randomize = kwargs.get('randomize', True)
-    alternative = kwargs.get('alternative', 'both')# 'both' != 'two-sided'
+    alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
 
-    
     test_results = {}
 
     if alternative == 'both' or alternative == 'greater':
-        
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
-        test_results['log_rank_greater'] = -np.log(lr_pval) # large values are significant
+        test_results['log_rank_greater'] = -np.log(lr_pval)  # large values are significant
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='greater', 
-            randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False) 
-                    # if not using stbl=False, then sometimes
-                    # HC misses the significance of the strongest effect 
+        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='greater',
+                                    randomize=randomize)
+        mt = MultiTest(pvals_greater, stbl=False)
+        # if not using stbl=False, then sometimes
+        # HC misses the significance of the strongest effect
         test_results['hc_greater'] = mt.hc()[0]
         test_results['fisher_greater'] = mt.fisher()[0]
         test_results['min_p_greater'] = mt.minp()
         test_results['berk_jones_greater'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_greater'] = -np.log(scipy.stats.ranksums(
-                                        Nt1, Nt2, alternative='greater').pvalue)
+            Nt1, Nt2, alternative='greater').pvalue)
 
     if alternative == 'both' or alternative == 'less':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
-        test_results['log_rank_less'] = -np.log(lr_pval) # large values are significant
+        test_results['log_rank_less'] = -np.log(lr_pval)  # large values are significant
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='less', 
-            randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False) 
-                    # if not using stbl=False, then sometimes
-                    # HC misses the significance of the strongest effect 
+        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='less',
+                                    randomize=randomize)
+        mt = MultiTest(pvals_greater, stbl=False)
+        # if not using stbl=False, then sometimes
+        # HC misses the significance of the strongest effect
         test_results['hc_less'] = mt.hc()[0]
         test_results['fisher_less'] = mt.fisher()[0]
         test_results['min_p_less'] = mt.minp()
         test_results['berk_jones_less'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_less'] = -np.log(scipy.stats.ranksums(
-                                        Nt1, Nt2, alternative='less').pvalue)
-
+            Nt1, Nt2, alternative='less').pvalue)
 
     if alternative == 'two-sided':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='two-sided')
         test_results['log_rank'] = lr
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='two-sided', 
-            randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False) 
-                    # if not using stbl=False, then sometimes
-                    # HC misses the significance of the strongest effect 
+        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='two-sided',
+                                    randomize=randomize)
+        mt = MultiTest(pvals_greater, stbl=False)
+        # if not using stbl=False, then sometimes
+        # HC misses the significance of the strongest effect
         test_results['hc'] = mt.hc()[0]
         test_results['fisher'] = mt.fisher()[0]
         test_results['min_p'] = mt.minp()
         test_results['berk_jones'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-                                        Nt1, Nt2, alternative='two-sided').pvalue)
+            Nt1, Nt2, alternative='two-sided').pvalue)
 
     return test_results
-    
+
 
 def simulate_null(N1, N2, T, nMonte):
     """
@@ -250,7 +237,7 @@ def simulate_null(N1, N2, T, nMonte):
     :nMonte:  number of experiments to evaluate
 
     """
-    
+
     df0 = pd.DataFrame()
     print("Simulating null...")
     for itr in tqdm(range(nMonte)):
@@ -269,12 +256,12 @@ def run_many_experiments(T, N1, N2, nMonte):
     mm = 2 * rr * np.log(T) / N1
 
     df1 = pd.DataFrame()
-    nMonte = 100       # number of experiments
+    nMonte = 100  # number of experiments
 
     for itr in tqdm(range(nMonte)):
         for beta in bb:
             for mu in mm:
-                eps = T ** -beta   # sparsity rate
+                eps = T ** -beta  # sparsity rate
                 Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
                 res1 = evaluate_test_stats(Nt1, Nt2)
                 res2 = evaluate_test_stats(Nt2, Nt1)
@@ -310,34 +297,33 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
     for c in df1.groupby(global_params):
         print(f"Analyzing the case (T, N1, N2) = {c[0]}")
         dfc = c[1]
-        
+
         for tsn in tests:
             name_good = tsn + '_' + good_side
             name_bad = tsn + '_' + bad_side
-            
+
             # we check rate when both sides succedds. These are not good outcomes
-            two_side_succ = ( dfc[name_good] > tcrit[name_good].values[0] ) & ( dfc[name_bad] > tcrit[name_bad].values[0] )
+            two_side_succ = (dfc[name_good] > tcrit[name_good].values[0]) & (dfc[name_bad] > tcrit[name_bad].values[0])
             print(f"{tsn}: both sides detected in {np.mean(two_side_succ)} of cases")
             print("(you should be worried if this number is significantly larger than 0.05)")
 
             bb = dfc['beta'].unique()
             rr = dfc['r'].unique()
             mat = np.zeros((len(bb), len(rr)))
-            for i,beta in enumerate(bb):
-                for j,r in enumerate(rr):
-                    dfs = dfc[(dfc['beta'] == beta) & (dfc['r'] == r) ]
+            for i, beta in enumerate(bb):
+                for j, r in enumerate(rr):
+                    dfs = dfc[(dfc['beta'] == beta) & (dfc['r'] == r)]
                     succ = dfs[name_good] > tcrit[name_good].values[0]
-                    mat[i,j] = np.mean(succ)
-
+                    mat[i, j] = np.mean(succ)
 
             plt.figure()
-            g = seaborn.heatmap(mat[:,::-1].T)
+            g = seaborn.heatmap(mat[:, ::-1].T)
             plt.title(f"{tsn} (power at .05 level)")
             g.set_xticklabels(bb)
             g.set_xlabel('sparsity')
             g.set_ylabel('intensity')
-            #g.set_yticklabels(np.round(mm[::-1],3))
-            g.set_yticklabels(np.round(rr[::-1],3))
+            # g.set_yticklabels(np.round(mm[::-1],3))
+            g.set_yticklabels(np.round(rr[::-1], 3))
             fn = out_filename + '_' + tsn + ".png"
             plt.savefig(fn)
             print("here")
@@ -345,27 +331,28 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
 
 def evaluate(itr, T, N1, N2, beta, r):
     """
+    order of argument is important!
     evalaute an atomic experiment
     """
-    mu = 2 * r * np.log(T) / T
+    mu = 2 * r * np.log(T) / np.log(T)
     eps = T ** (-beta)
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
+    print(Nt1, Nt2)
+    print(sum(Nt1 > 0))
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
     return res
 
 
 def main():
-
-    df = pd.read_csv('results/results.csv').filter(regex = '^((?!Unnamed).)*$')
-    df0 = df[df.r == 0]
-    df1 = df[df.r > 0]
-    illustrate_phase_diagrams(df1, df0)
+    T = 1000
+    N1 = 10000
+    N2 = 10000
+    beta = .7
+    r = .2
+    res = evaluate(1, T, N1, N2, beta, r)
+    print(res)
 
 
 if __name__ == '__main__':
     main()
-
-
-
-

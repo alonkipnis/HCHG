@@ -9,36 +9,40 @@ names:  # order matter! must matches order received by `evalaute`
 itr:  # Monte Carlo iterations
   type: 'range(int)'
   min: 1
-  max: 27
+  max: 2
 
 r:    # signal strength
   type: 'range(float)'
   min: 0
   max: 2.2
-  length: 13
+  length: 21
 
 beta: # signal rarity
   type: 'list(float)'
   values: 
     - .45
     - .5
+    - .55
     - .6
+    - .65
     - .7
+    - .75
     - .8
+    - .85
     - .9
     - .95
 
 T:    # total number of samples
   type: 'list(int)'
   values:
-    - 2000
+    - 1000
 
 N1:   # Total in Group 1
   type: 'list(int)'
   values:
-    - 1000
+    - 10000
 
 N2:   # Total in Group 2
   type: 'list(int)'
   values:
-    - 1000
+    - 10000
