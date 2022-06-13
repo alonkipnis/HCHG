@@ -326,7 +326,6 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
             g.set_yticklabels(np.round(rr[::-1], 3))
             fn = out_filename + '_' + tsn + ".png"
             plt.savefig(fn)
-            print("here")
 
 
 def evaluate(itr, T, N1, N2, beta, r):
@@ -338,8 +337,6 @@ def evaluate(itr, T, N1, N2, beta, r):
     eps = T ** (-beta)
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
-    print(Nt1, Nt2)
-    print(sum(Nt1 > 0))
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
     return res
 
