@@ -9,7 +9,7 @@ names:  # order matter! must matches order received by `evalaute`
 itr:  # Monte Carlo iterations
   type: 'range(int)'
   min: 1
-  max: 2
+  max: 100
 
 r:    # signal strength
   type: 'range(float)'
