@@ -15,9 +15,10 @@ mpl.style.use('ggplot')
 
 from scipy.stats import poisson, binom, norm, hypergeom, uniform
 from sample_survival_data import *
+from lifelines.statistics import logrank_test as logrank_lifeline
 
 
-def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
     """
     log-rank test 
     We assume that len(Nt1) == len(Nt2), and that each
@@ -59,6 +60,11 @@ def log_rank_test(Nt1, Nt2, alternative='two-sided'):
     return z, pval
 
 
+def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+    lr = logrank_lifeline(Nt1, Nt2).summary
+    return lr['test_statistic'][0], lr['p'][0]
+
+
 def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
     Exact hypergeometric test
@@ -80,12 +86,12 @@ def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     if randomize:
         U = uniform.rvs(size=len(k))
     else:
-        U = 0
+        U = 1
 
     if alternative == 'greater':
         return hypergeom.sf(k, M, n, N) + U * hypergeom.pmf(k, M, n, N)
     if alternative == 'less':
-        return hypergeom.cdf(k - 1, M, n, N) + U * hypergeom.pmf(k, M, n, N)
+        return hypergeom.cdf(k - 1, M, n, N) + (1-U) * hypergeom.pmf(k, M, n, N)
     raise ValueError("two-sided alternative is not available yet")
 
 
@@ -99,7 +105,7 @@ def q95(x):
         return pd.Series.quantile(x, .95)
 
 
-def mutli_pvals(Nt1, Nt2, test='hypergeom',
+def multi_pvals(Nt1, Nt2, test='hypergeom',
                 randomize=True, alternative='greater'):
     """
     Compute P-values from the pair list of coutns in the two groups.
@@ -158,6 +164,8 @@ def atmoic_experiment(T, N1, N2, eps, mu):
 
 def evaluate_test_stats(Nt1, Nt2, **kwargs):
     """
+    Evaluate many tests for comparing the lists Nt1 and Nt2
+
     Args:
     :Nt1: first list of events
     :Nt2: second list of events
@@ -180,13 +188,13 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
         test_results['log_rank_greater'] = -np.log(lr_pval)  # large values are significant
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='greater',
+        pvals_greater = multi_pvals(Nt1, Nt2, alternative='greater',
                                     randomize=randomize)
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc_greater'] = mt.hc()[0]
-        test_results['fisher_greater'] = mt.fisher()[0]
+        test_results['fisher_greater'] = mt.fisher()
         test_results['min_p_greater'] = mt.minp()
         test_results['berk_jones_greater'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_greater'] = -np.log(scipy.stats.ranksums(
@@ -196,13 +204,13 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
         test_results['log_rank_less'] = -np.log(lr_pval)  # large values are significant
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='less',
+        pvals_greater = multi_pvals(Nt1, Nt2, alternative='less',
                                     randomize=randomize)
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc_less'] = mt.hc()[0]
-        test_results['fisher_less'] = mt.fisher()[0]
+        test_results['fisher_less'] = mt.fisher()
         test_results['min_p_less'] = mt.minp()
         test_results['berk_jones_less'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_less'] = -np.log(scipy.stats.ranksums(
@@ -218,7 +226,7 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc'] = mt.hc()[0]
-        test_results['fisher'] = mt.fisher()[0]
+        test_results['fisher'] = mt.fisher()
         test_results['min_p'] = mt.minp()
         test_results['berk_jones'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
@@ -326,7 +334,6 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
             g.set_yticklabels(np.round(rr[::-1], 3))
             fn = out_filename + '_' + tsn + ".png"
             plt.savefig(fn)
-            print("here")
 
 
 def evaluate(itr, T, N1, N2, beta, r):
@@ -338,8 +345,6 @@ def evaluate(itr, T, N1, N2, beta, r):
     eps = T ** (-beta)
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
-    print(Nt1, Nt2)
-    print(sum(Nt1 > 0))
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
     return res
 
@@ -348,8 +353,8 @@ def main():
     T = 1000
     N1 = 10000
     N2 = 10000
-    beta = .7
-    r = .2
+    beta = .8
+    r = .001
     res = evaluate(1, T, N1, N2, beta, r)
     print(res)
 

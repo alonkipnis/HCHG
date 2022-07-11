@@ -16,9 +16,10 @@ mpl.style.use('ggplot')
 from scipy.stats import poisson, binom, norm, hypergeom, uniform
 
 from sample_survival_data import *
+from lifelines.statistics import logrank_test
 
 
-def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
     """
     log-rank test 
     We assume that len(Nt1) == len(Nt2), and that each
@@ -60,6 +61,9 @@ def log_rank_test(Nt1, Nt2, alternative='two-sided'):
 
     return z, pval
 
+def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+    lr = logrank_test(Nt1, Nt2).summary
+    return lr['test_statistic'][0], lr['p'][0]
 
 def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
