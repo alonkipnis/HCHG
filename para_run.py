@@ -158,7 +158,7 @@ def main():
 
     output_filename = args.o
     if output_filename == "":
-        dig = hash(str(self._configurations))
+        dig = hash(str(exper._configurations))
         output_filename = f"results_{dig}.csv"
 
     exper.to_file(output_filename)
