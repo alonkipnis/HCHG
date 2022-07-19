@@ -1,4 +1,4 @@
-names:  # order matter! must matches order received by `evalaute`
+names:  # order matter! order should match that received by `evalaute`
   - 'itr'
   - 'T'
   - 'N1'
@@ -15,7 +15,7 @@ r:    # signal strength
   type: 'range(float)'
   min: 0
   max: 2.2
-  length: 21
+  length: 27
 
 beta: # signal rarity
   type: 'list(float)'
@@ -40,9 +40,10 @@ T:    # total number of samples
 N1:   # Total in Group 1
   type: 'list(int)'
   values:
-    - 10000
+    - 5000
+    - 2000
 
 N2:   # Total in Group 2
   type: 'list(int)'
   values:
-    - 10000
+    - 5000

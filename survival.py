@@ -282,66 +282,13 @@ def run_many_experiments(T, N1, N2, nMonte):
     return df1
 
 
-def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
-    """
-    Args:
-    -----
-    :df1:   results from experiments under alternative 
-    :df0:   results from experiments under null
-    :out_filename:   file/path name to write to
-
-    """
-
-    params = ['itr', 'T', 'N1', 'N2' 'r', 'beta']
-    tests = ['log_rank', 'hc', 'min_p', 'berk_jones', 'wilcoxon', 'fisher']
-    tests_vars = [c for c in df0.columns if c not in params and 'Unnamed' not in c]
-
-    global_params = ['T', 'N1', 'N2']
-    tcrit = df0.groupby(global_params).agg(q95)
-
-    good_side = 'greater'
-    bad_side = 'less'
-
-    for c in df1.groupby(global_params):
-        print(f"Analyzing the case (T, N1, N2) = {c[0]}")
-        dfc = c[1]
-
-        for tsn in tests:
-            name_good = tsn + '_' + good_side
-            name_bad = tsn + '_' + bad_side
-
-            # we check rate when both sides succedds. These are not good outcomes
-            two_side_succ = (dfc[name_good] > tcrit[name_good].values[0]) & (dfc[name_bad] > tcrit[name_bad].values[0])
-            print(f"{tsn}: both sides detected in {np.mean(two_side_succ)} of cases")
-            print("(you should be worried if this number is significantly larger than 0.05)")
-
-            bb = dfc['beta'].unique()
-            rr = dfc['r'].unique()
-            mat = np.zeros((len(bb), len(rr)))
-            for i, beta in enumerate(bb):
-                for j, r in enumerate(rr):
-                    dfs = dfc[(dfc['beta'] == beta) & (dfc['r'] == r)]
-                    succ = dfs[name_good] > tcrit[name_good].values[0]
-                    mat[i, j] = np.mean(succ)
-
-            plt.figure()
-            g = seaborn.heatmap(mat[:, ::-1].T)
-            plt.title(f"{tsn} (power at .05 level)")
-            g.set_xticklabels(bb)
-            g.set_xlabel('sparsity')
-            g.set_ylabel('intensity')
-            # g.set_yticklabels(np.round(mm[::-1],3))
-            g.set_yticklabels(np.round(rr[::-1], 3))
-            fn = out_filename + '_' + tsn + ".png"
-            plt.savefig(fn)
-
-
 def evaluate(itr, T, N1, N2, beta, r):
     """
     order of argument is important!
     evalaute an atomic experiment
     """
-    mu = 2 * r * np.log(T) / np.log(T)
+    n0 = 2 * N1 * N2 / (N1 + N2)
+    mu = r * np.log(T) / (2 * n0)
     eps = T ** (-beta)
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
@@ -351,10 +298,10 @@ def evaluate(itr, T, N1, N2, beta, r):
 
 def main():
     T = 1000
-    N1 = 10000
-    N2 = 10000
+    N1 = 5000
+    N2 = 5000
     beta = .8
-    r = .001
+    r = 2
     res = evaluate(1, T, N1, N2, beta, r)
     print(res)
 

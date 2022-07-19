@@ -9,8 +9,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 import argparse
 
-import dask
-import time
 from dask.distributed import Client, progress
 
 from survival import evaluate
@@ -19,11 +17,11 @@ from configurations import load_configurations
 
 class ParaRun(object):
     """
-    ParaRun module for running emberisingly parallelizable computational expriments
+    ParaRun module for running embarrassingly parallelizable computational experiments
     ParaRun receives an atomic experiment function and a table in which 
-    each row represnets one configuration of the expeirments. The atomic 
+    each row represents one configuration of the experiments. The atomic
     experiment function returns a dictionary representing the result of one 
-    experiments. All varaibles in an experiment's configuration and result are 
+    experiments. All variables in an experiment's configuration and result are
     arranged as one row in ParaRun._out. 
 
     Args:
@@ -35,8 +33,8 @@ class ParaRun(object):
         - Python dictionary containing instructions for generating a table of configurations
         
     Methods:
-        run:   apply atomic expriment function to each row in configuration table and stores
-            the results as a large table in which each row contains configuration varaibles
+        run:   apply atomic experiment function to each row in configuration table and stores
+            the results as a large table in which each row contains configuration variables
             and the result of the experiment involving this configuration
         Dask_run:   same as ParaRun.run, but use Dask.distributed scaling manager 
         to_file:   store the results to a CSV file
@@ -158,7 +156,7 @@ def main():
 
     output_filename = args.o
     if output_filename == "":
-        dig = hash(str(self._configurations))
+        dig = hash(str(exper._configurations))
         output_filename = f"results_{dig}.csv"
 
     exper.to_file(output_filename)
