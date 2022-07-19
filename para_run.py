@@ -156,7 +156,7 @@ def main():
 
     output_filename = args.o
     if output_filename == "":
-        dig = hash(str(exper._configurations))
+        dig = str(hash(str(exper._configurations)))[:5]
         output_filename = f"results_{dig}.csv"
 
     exper.to_file(output_filename)

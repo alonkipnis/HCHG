@@ -9,7 +9,7 @@ names:  # order matter! order should match that received by `evalaute`
 itr:  # Monte Carlo iterations
   type: 'range(int)'
   min: 1
-  max: 100
+  max: 17
 
 r:    # signal strength
   type: 'range(float)'
@@ -41,7 +41,6 @@ N1:   # Total in Group 1
   type: 'list(int)'
   values:
     - 5000
-    - 2000
 
 N2:   # Total in Group 2
   type: 'list(int)'

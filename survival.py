@@ -17,8 +17,9 @@ from scipy.stats import poisson, binom, norm, hypergeom, uniform
 from sample_survival_data import *
 from lifelines.statistics import logrank_test as logrank_lifeline
 
+EPS = 1e-20
 
-def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
+def log_rank_test(Nt1, Nt2, alternative='two-sided'):
     """
     log-rank test 
     We assume that len(Nt1) == len(Nt2), and that each
@@ -60,7 +61,7 @@ def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
     return z, pval
 
 
-def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+def log_rank_test_lifeline(Nt1, Nt2):
     lr = logrank_lifeline(Nt1, Nt2).summary
     return lr['test_statistic'][0], lr['p'][0]
 
@@ -144,7 +145,7 @@ def multi_pvals(Nt1, Nt2, test='hypergeom',
     return pvals
 
 
-def atmoic_experiment(T, N1, N2, eps, mu):
+def atmoic_experiment(T, N1, N2, eps, r):
     """
     Sample from survival data; evalaute several test statistics
     
@@ -154,11 +155,11 @@ def atmoic_experiment(T, N1, N2, eps, mu):
     :N1:   total in group1 at t=0
     :N2:   total in group1 at t=0
     :eps:  fraction of non-null events
-    :mu:   intensity of non-null events
+    :r:   intensity of non-null events
     
     """
 
-    Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
+    Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, r)
     return evaluate_test_stats(Nt1, Nt2)
 
 
@@ -184,9 +185,12 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
 
     test_results = {}
 
+    lrln, lrln_pval = log_rank_test_lifeline(Nt1, Nt2)
+    test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
+
     if alternative == 'both' or alternative == 'greater':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
-        test_results['log_rank_greater'] = -np.log(lr_pval)  # large values are significant
+        test_results['log_rank_greater'] = -np.log(lr_pval + EPS)  # large values are significant
 
         pvals_greater = multi_pvals(Nt1, Nt2, alternative='greater',
                                     randomize=randomize)
@@ -198,7 +202,7 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         test_results['min_p_greater'] = mt.minp()
         test_results['berk_jones_greater'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_greater'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='greater').pvalue)
+            Nt1, Nt2, alternative='greater').pvalue + EPS)
 
     if alternative == 'both' or alternative == 'less':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
@@ -214,11 +218,11 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         test_results['min_p_less'] = mt.minp()
         test_results['berk_jones_less'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon_less'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='less').pvalue)
+            Nt1, Nt2, alternative='less').pvalue + EPS)
 
     if alternative == 'two-sided':
         lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='two-sided')
-        test_results['log_rank'] = lr
+        test_results['log_rank'] = -np.log(lr_pval + EPS)
 
         pvals_greater = mutli_pvals(Nt1, Nt2, alternative='two-sided',
                                     randomize=randomize)
@@ -230,12 +234,12 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
         test_results['min_p'] = mt.minp()
         test_results['berk_jones'] = mt.berk_jones(gamma=.45)
         test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='two-sided').pvalue)
+            Nt1, Nt2, alternative='two-sided').pvalue + EPS)
 
     return test_results
 
 
-def simulate_null(N1, N2, T, nMonte):
+def simulate_null(N1, N2, T, lam0, nMonte):
     """
     Args:
     -----
@@ -249,7 +253,7 @@ def simulate_null(N1, N2, T, nMonte):
     df0 = pd.DataFrame()
     print("Simulating null...")
     for itr in tqdm(range(nMonte)):
-        Nt1, Nt2 = sample_survival_data(T, N1, N2, 0, 0)
+        Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, 0, 0)
         res = evaluate_test_stats(Nt1, Nt2)
         df0 = df0.append(res, ignore_index=True)
 
@@ -257,22 +261,19 @@ def simulate_null(N1, N2, T, nMonte):
     return df0.agg([q95])
 
 
-def run_many_experiments(T, N1, N2, nMonte):
+def run_many_experiments(T, N1, N2, lam0, nMonte):
     # under non-null
     bb = np.linspace(.5, .9, 7)
     rr = np.sqrt(np.linspace(0.01, 1, 9))
-    mm = 2 * rr * np.log(T) / N1
 
     df1 = pd.DataFrame()
-    nMonte = 100  # number of experiments
 
     for itr in tqdm(range(nMonte)):
         for beta in bb:
-            for mu in mm:
+            for r in rr:
                 eps = T ** -beta  # sparsity rate
-                Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
+                Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
                 res1 = evaluate_test_stats(Nt1, Nt2)
-                res2 = evaluate_test_stats(Nt2, Nt1)
                 res = pd.DataFrame(res1, index=[0])
                 res['mu'] = mu
                 res['eps'] = eps
@@ -287,11 +288,11 @@ def evaluate(itr, T, N1, N2, beta, r):
     order of argument is important!
     evalaute an atomic experiment
     """
-    n0 = 2 * N1 * N2 / (N1 + N2)
-    mu = r * np.log(T) / (2 * n0)
-    eps = T ** (-beta)
 
-    Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
+    eps = T ** (-beta)
+    lam0 = np.ones(T) / T
+
+    Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
     return res
 
@@ -300,8 +301,9 @@ def main():
     T = 1000
     N1 = 5000
     N2 = 5000
-    beta = .8
-    r = 2
+    beta = .7
+    r = 1
+
     res = evaluate(1, T, N1, N2, beta, r)
     print(res)
 
