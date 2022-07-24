@@ -13,7 +13,7 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
-from scipy.stats import poisson, binom, norm, hypergeom, uniform
+from scipy.stats import poisson, norm, hypergeom, uniform
 from sample_survival_data import *
 from lifelines.statistics import logrank_test as logrank_lifeline
 
