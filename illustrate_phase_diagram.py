@@ -84,17 +84,25 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
 def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-i', type=str, help='results file', default='results.csv')
+    parser.add_argument('-n', type=str, help='null data', default="")
     parser.add_argument('-o', type=str, help='output dir', default='Figs/')
     args = parser.parse_args()
     #
     logging.info(f"Reading from {args.i}...")
     df = pd.read_csv(args.i).filter(regex='^((?!Unnamed).)*$')
+    df1 = df[df.r > 0]
+
     logging.info(f"Found {len(args.i)} records.")
 
-    df0 = df[df.r == 0]
-    df1 = df[df.r > 0]
-    illustrate_phase_diagrams(df1, df0, out_filename=args.o+'phase_diagram')
+    if args.n == "":
+        results_null_file = args.i
+    else:
+        results_null_file = args.n
 
+    df0 = pd.read_csv(results_null_file).filter(regex='^((?!Unnamed).)*$')
+    df0 = df0[df0.r == 0]
+
+    illustrate_phase_diagrams(df1, df0, out_filename=args.o+'phase_diagram')
 
 if __name__ == '__main__':
     main()

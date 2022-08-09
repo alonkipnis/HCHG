@@ -36,7 +36,7 @@ def sample_survival_data(T, N1, N2, lam0, eps, r):
     lam2 = lam1.copy()
     tt = np.arange(T)
     nt = 2 * N1 * N2 / (N1 + N2) * np.exp(-lam0 * tt)
-    mu = np.sqrt(r / 2 * np.log(T))
+    mu = r / 2 * np.log(T)
     lam2[theta] = (np.sqrt(mu / nt[theta]) + np.sqrt(lam1[theta])) ** 2  # perturbed Poisson rates
 
     Nt1[0] = N1

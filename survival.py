@@ -3,7 +3,7 @@ import pandas as pd
 import scipy
 import seaborn
 
-from twosample import binom_test_two_sided
+from twosample import binom_test
 from multitest import MultiTest
 from tqdm import tqdm
 
@@ -19,7 +19,7 @@ from lifelines.statistics import logrank_test as logrank_lifeline
 
 EPS = 1e-20
 
-def log_rank_test(Nt1, Nt2, alternative='two-sided'):
+def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     """
     log-rank test 
     We assume that len(Nt1) == len(Nt2), and that each
@@ -42,8 +42,9 @@ def log_rank_test(Nt1, Nt2, alternative='two-sided'):
 
     assert (len(Nt1) == len(Nt2))
 
-    Ot1 = -np.diff(Nt1)
-    Ot2 = -np.diff(Nt2)
+    assert (len(Nt1) == len(Nt2))
+    assert (len(Ot1) + 1 == len(Nt1))
+    assert (len(Ot2) + 1 == len(Nt2))
 
     Nt = Nt2 + Nt1
     e0 = Nt2[:-1] * (Ot1 + Ot2) / Nt[:-1]
@@ -106,13 +107,13 @@ def q95(x):
         return pd.Series.quantile(x, .95)
 
 
-def multi_pvals(Nt1, Nt2, test='hypergeom',
-                randomize=True, alternative='greater'):
+def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
+                randomize=False, alternative='greater'):
     """
     Compute P-values from the pair list of coutns in the two groups.
     We have one p-value per event time.
     An even is a pair (Nt1[i], Nt2[i]).
-    
+
     Args:
     -----
     :Nt1:   vector of counts in group 1 (each count corresponds to an event)
@@ -120,24 +121,23 @@ def multi_pvals(Nt1, Nt2, test='hypergeom',
     :test:  is the type of test to apply (options are: 'hypergeom' or
      'binomial')
     :randomize:  randomized individual tests or not
-    :alternative:   type of alternative to use in each test 
+    :alternative:   type of alternative to use in each test
 
     Return:
-        P-values 
+        P-values
     """
 
     assert (len(Nt1) == len(Nt2))
+    assert (len(Ot1) + 1 == len(Nt1))
+    assert (len(Ot2) + 1 == len(Nt2))
 
-    Ot1 = -np.diff(Nt1)
-    Ot2 = -np.diff(Nt2)
     Nt = Nt2 + Nt1
 
     if test == 'binomial':
         n = Ot1 + Ot2
         p = Nt2[:-1] / Nt[:-1]
         x = Ot2
-        pvals = binom_test_two_sided(x, n, p,
-                                     randomize=randomize, alternative=alternative)
+        pvals = binom_test(x, n, p, randomize=randomize, alt=alternative)
     elif test == 'hypergeom':
         pvals = hypergeom_test(Ot2, Nt[:-1], Nt2[:-1], Ot1 + Ot2,
                                randomize=randomize, alternative=alternative)
@@ -163,14 +163,17 @@ def atmoic_experiment(T, N1, N2, eps, r):
     return evaluate_test_stats(Nt1, Nt2)
 
 
-def evaluate_test_stats(Nt1, Nt2, **kwargs):
+def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     """
     Evaluate many tests for comparing the lists Nt1 and Nt2
 
     Args:
-    :Nt1: first list of events
-    :Nt2: second list of events
-    
+    :Nt1: first list of at-risk subjects
+    :Nt2: second list of at-risk subjects
+    :Ot1: number of events in group 1
+    :Ot2: number of events in group 2
+
+
     Compute several statistics of the two-sample data:
     log-rank
     higher criticism
@@ -185,14 +188,13 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
 
     test_results = {}
 
-    lrln, lrln_pval = log_rank_test_lifeline(Nt1, Nt2)
-    test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
+    #test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
 
     if alternative == 'both' or alternative == 'greater':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
-        test_results['log_rank_greater'] = -np.log(lr_pval + EPS)  # large values are significant
+        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='greater')
+        test_results['log_rank_greater'] = lr  # large values are significant
 
-        pvals_greater = multi_pvals(Nt1, Nt2, alternative='greater',
+        pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='greater',
                                     randomize=randomize)
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
@@ -205,10 +207,10 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
             Nt1, Nt2, alternative='greater').pvalue + EPS)
 
     if alternative == 'both' or alternative == 'less':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
-        test_results['log_rank_less'] = -np.log(lr_pval)  # large values are significant
+        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='less')
+        test_results['log_rank_less'] = lr  # large values are significant
 
-        pvals_greater = multi_pvals(Nt1, Nt2, alternative='less',
+        pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='less',
                                     randomize=randomize)
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
@@ -221,10 +223,10 @@ def evaluate_test_stats(Nt1, Nt2, **kwargs):
             Nt1, Nt2, alternative='less').pvalue + EPS)
 
     if alternative == 'two-sided':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='two-sided')
-        test_results['log_rank'] = -np.log(lr_pval + EPS)
+        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided')
+        test_results['log_rank'] = lr
 
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='two-sided',
+        pvals_greater = mutli_pvals(Nt1, Nt2, Ot1, Ot2, alternative='two-sided',
                                     randomize=randomize)
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
@@ -290,7 +292,7 @@ def evaluate(itr, T, N1, N2, beta, r):
     """
 
     eps = T ** (-beta)
-    lam0 = np.ones(T) / T
+    lam0 = 3 * np.ones(T) / T
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
     res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
