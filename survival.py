@@ -19,6 +19,7 @@ from lifelines.statistics import logrank_test as logrank_lifeline
 
 EPS = 1e-20
 
+
 def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     """
     log-rank test 
@@ -26,11 +27,11 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     entry in either list represents an event in which
     a change occurs in the number of items in each groups 
     (the change in each group may also be zero)
-    
+
     Args:
     -----
     :Nt1:   vector of counts in group 1 (each count corresponds to an event)
-    :Nt2:   vector of counts in group 2 
+    :Nt2:   vector of counts in group 2
     :alternative:   options are: 'greater', 'less', or 'two-sided'
                     with 'greater', test against the alternative that
                     more events occured in Nt2 compared to Nt1
@@ -41,14 +42,12 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     """
 
     assert (len(Nt1) == len(Nt2))
-
-    assert (len(Nt1) == len(Nt2))
-    assert (len(Ot1) + 1 == len(Nt1))
-    assert (len(Ot2) + 1 == len(Nt2))
+    assert (len(Ot1) == len(Ot2))
+    assert (len(Ot1) == len(Nt1))
 
     Nt = Nt2 + Nt1
-    e0 = Nt2[:-1] * (Ot1 + Ot2) / Nt[:-1]
-    var0 = e0 * ((Nt[:-1] - (Ot1 + Ot2)) / Nt[:-1]) * (Nt1[:-1] / (Nt[:-1] - 1))
+    e0 = Nt2 * (Ot1 + Ot2) / Nt
+    var0 = e0 * ((Nt - (Ot1 + Ot2)) / Nt) * (Nt1 / (Nt - 1))
 
     z = np.sum(Ot2 - e0) / np.sqrt(np.sum(var0))
 
@@ -128,18 +127,18 @@ def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
     """
 
     assert (len(Nt1) == len(Nt2))
-    assert (len(Ot1) + 1 == len(Nt1))
-    assert (len(Ot2) + 1 == len(Nt2))
+    assert (len(Ot1) == len(Ot2))
+    assert (len(Ot1) == len(Nt1))
 
     Nt = Nt2 + Nt1
 
     if test == 'binomial':
         n = Ot1 + Ot2
-        p = Nt2[:-1] / Nt[:-1]
+        p = Nt2 / Nt
         x = Ot2
         pvals = binom_test(x, n, p, randomize=randomize, alt=alternative)
     elif test == 'hypergeom':
-        pvals = hypergeom_test(Ot2, Nt[:-1], Nt2[:-1], Ot1 + Ot2,
+        pvals = hypergeom_test(Ot2, Nt, Nt2, Ot1 + Ot2,
                                randomize=randomize, alternative=alternative)
 
     return pvals
@@ -192,7 +191,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     if alternative == 'both' or alternative == 'greater':
         lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='greater')
-        test_results['log_rank_greater'] = lr  # large values are significant
+        test_results['log_rank_greater'] = np.abs(lr)  # large values are significant
 
         pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='greater',
                                     randomize=randomize)
@@ -208,7 +207,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     if alternative == 'both' or alternative == 'less':
         lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='less')
-        test_results['log_rank_less'] = lr  # large values are significant
+        test_results['log_rank_less'] = np.abs(lr)  # large values are significant
 
         pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='less',
                                     randomize=randomize)
@@ -224,7 +223,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     if alternative == 'two-sided':
         lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided')
-        test_results['log_rank'] = lr
+        test_results['log_rank'] = np.abs(lr)
 
         pvals_greater = mutli_pvals(Nt1, Nt2, Ot1, Ot2, alternative='two-sided',
                                     randomize=randomize)
@@ -256,7 +255,9 @@ def simulate_null(N1, N2, T, lam0, nMonte):
     print("Simulating null...")
     for itr in tqdm(range(nMonte)):
         Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, 0, 0)
-        res = evaluate_test_stats(Nt1, Nt2)
+        Ot1 = -np.diff(Nt1)
+        Ot2 = -np.diff(Nt2)
+        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=True)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
@@ -275,7 +276,9 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
             for r in rr:
                 eps = T ** -beta  # sparsity rate
                 Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
-                res1 = evaluate_test_stats(Nt1, Nt2)
+                Ot1 = -np.diff(Nt1)
+                Ot2 = -np.diff(Nt2)
+                res1 = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=True)
                 res = pd.DataFrame(res1, index=[0])
                 res['mu'] = mu
                 res['eps'] = eps
@@ -295,7 +298,10 @@ def evaluate(itr, T, N1, N2, beta, r):
     lam0 = 3 * np.ones(T) / T
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
-    res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
+    Ot1 = -np.diff(Nt1)
+    Ot2 = -np.diff(Nt2)
+    res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
+                              randomized=True, alternative='both', stbl=True)
     return res
 
 

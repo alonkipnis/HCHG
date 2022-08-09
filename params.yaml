@@ -40,9 +40,9 @@ T:    # total number of samples
 N1:   # Total in Group 1
   type: 'list(int)'
   values:
-    - 20000
+    - 10000
 
 N2:   # Total in Group 2
   type: 'list(int)'
   values:
-    - 20000
+    - 10000
