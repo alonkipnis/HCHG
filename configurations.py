@@ -1,6 +1,6 @@
 # to do:
 # either transform into a model GenerateConfiguration
-# or only load confirutations from a .csv file
+# or only load configurations from a .csv file
 import numpy as np
 import itertools
 import yaml
@@ -18,11 +18,11 @@ def read_params(params) -> Dict:
         dictionary of parameters
 
     """
-    if type(params) == str :
-            param_file = params
-            logging.info(f" Reading parameters from {param_file}.")
-            with open(param_file) as file:
-                out = yaml.load(file, Loader=yaml.FullLoader)
+    if type(params) == str:
+        param_file = params
+        logging.info(f" Reading parameters from {param_file}.")
+        with open(param_file) as file:
+            out = yaml.load(file, Loader=yaml.FullLoader)
     elif type(params) == dict:
         out = params
     else:
@@ -42,19 +42,19 @@ def load_configurations(params) -> pd.DataFrame:
     """
 
     if type(params) == str:  # params is a filename, either CSV of YML
-            param_file = params
+        param_file = params
 
-            if '.csv' in param_file:  # case CSV
-                logging.info("Reading configurations from CSV file...")
-                df_conf = pf.read_csv(param_file)
+        if '.csv' in param_file:  # case CSV
+            logging.info("Reading configurations from CSV file...")
+            df_conf = pf.read_csv(param_file)
 
-            if 'yaml' in param_file or 'yml' in param_file: # case YML
-                logging.info("Reading configurations from YAML file...")
-                with open(param_file) as file:
-                    param_dict = yaml.load(file, Loader=yaml.FullLoader)
+        if 'yaml' in param_file or 'yml' in param_file:  # case YML
+            logging.info("Reading configurations from YAML file...")
+            with open(param_file) as file:
+                param_dict = yaml.load(file, Loader=yaml.FullLoader)
 
-                logging.info(f"Generating configurations based on {param_dict}...")
-                df_conf = pd.DataFrame(generate_conf_from_dict(param_dict))
+            logging.info(f"Generating configurations based on {param_dict}...")
+            df_conf = pd.DataFrame(generate_conf_from_dict(param_dict))
 
     elif type(params) == dict:  # params is a dictionary
         logging.info("Generating configurations based on {params}...")
@@ -67,14 +67,13 @@ def load_configurations(params) -> pd.DataFrame:
 
 
 def generate_conf_from_dict(conf_dict):
-    
-    def gen_series(var) :
+    def gen_series(var):
         rec = conf_dict[var]
         if rec['type'] == 'range(float)':
             tp = conf_dict[var].get('float')
             return np.linspace(rec['min'], rec['max'], int(rec['length'])).astype(tp)
         if rec['type'] == 'range(int)':
-            return np.arange(rec['min'], rec['max']+1).astype(int)
+            return np.arange(rec['min'], rec['max'] + 1).astype(int)
         if rec['type'] == 'list(int)':
             return [int(li) for li in rec['values']]
         if rec['type'] == 'list(float)':
@@ -96,6 +95,7 @@ def main():
     conf = pd.DataFrame(generate_conf_from_dict(params))
     print(f"Generated {len(conf)} configurations.")
     print(conf)
+
 
 if __name__ == '__main__':
     main()

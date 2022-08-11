@@ -3,6 +3,7 @@ names:  # order matter! order should match that received by `evalaute`
   - 'T'
   - 'N1'
   - 'N2'
+  - 'lam0'
   - 'beta'
   - 'r'
   
