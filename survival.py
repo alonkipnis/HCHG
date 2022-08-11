@@ -288,16 +288,16 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
     return df1
 
 
-def evaluate(itr, T, N1, N2, beta, r):
+def evaluate(itr, T, N1, N2, lam0, beta, r):
     """
     order of argument is important!
     evalaute an atomic experiment
     """
 
     eps = T ** (-beta)
-    lam0 = 3 * np.ones(T) / T
+    lam = lam0 * np.ones(T) / T
 
-    Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
+    Nt1, Nt2 = sample_survival_data(T, N1, N2, lam, eps, r)
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
@@ -311,8 +311,9 @@ def main():
     N2 = 5000
     beta = .7
     r = 1
+    lam0 = 3
 
-    res = evaluate(1, T, N1, N2, beta, r)
+    res = evaluate(1, T, N1, N2, lam0, beta, r)
     print(res)
 
 
