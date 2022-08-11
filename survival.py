@@ -284,6 +284,7 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
                 res['eps'] = eps
                 res['beta'] = beta
                 res['itr'] = itr
+                res['lam0'] = lam0
                 df1 = df1.append(res, ignore_index=True)
     return df1
 
