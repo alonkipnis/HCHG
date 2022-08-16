@@ -182,7 +182,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     Wilcoxon ranksum
     """
 
-    randomize = kwargs.get('randomize', True)
+    randomize = kwargs.get('randomize', False)
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
 
     test_results = {}
@@ -240,7 +240,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     return test_results
 
 
-def simulate_null(N1, N2, T, lam0, nMonte):
+def simulate_null(T, N1, N2, lam0, nMonte):
     """
     Args:
     -----
@@ -261,7 +261,7 @@ def simulate_null(N1, N2, T, lam0, nMonte):
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
-    return df0.agg([q95])
+    return df0
 
 
 def run_many_experiments(T, N1, N2, lam0, nMonte):
