@@ -7,11 +7,13 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
 mpl.style.use('ggplot')
 from tqdm import tqdm
-from scipy.stats import poisson, binom, norm, hypergeom, uniform
+from scipy.stats import poisson, binom, norm, hypergeom, uniform, bernoulli
 import pandas as pd
 from sample_survival_data import *
 import argparse
 
+import logging
+logging.basicConfig(level=logging.INFO)
 from survival import ( hypergeom_test, q95, log_rank_test, multi_pvals, evaluate_test_stats)
 
 
@@ -154,7 +156,7 @@ def std_95(x):
     return np.std(x) / np.sqrt(len(x)) * np.sqrt(.95 * (1 - .95))
 
 
-def simulate_null_data(df, T, rep=1, stbl=False):
+def simulate_null_data(df, T, rep=1, stbl=True):
     """
     Generate random group assignments.
     Evaluate test statistics. Here we assume that df
@@ -175,26 +177,28 @@ def simulate_null_data(df, T, rep=1, stbl=False):
     """
 
     df0 = pd.DataFrame()
-    gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
+    all_genes = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
+    genes_to_test = all_genes
 
-    print("Simulating null using data...")
+    logging.debug("Simulating null using real data...")
 
-    for _ in range(rep):
-        print("Sampling a random division...")
-        df_copy = df.copy()
-        df_copy.iloc[:, 1:-2] = np.random.randint(2, size=df.iloc[:, 1:-2].shape)
-        print(f"Testing {len(gene_names)} 'null' genes...")
-        for gene_name in tqdm(gene_names):
+    df_copy = df.copy()
+
+    logging.debug("Testing {len(genes_to_test)} 'null' genes...")
+    for gene_name in tqdm(genes_to_test):
+        prob = 0.5
+        for _ in range(rep):
+            logging.debug(f'Sampling a random groups assignment info')
+            df_copy.loc[:, gene_name] = bernoulli.rvs(p=prob, size=len(df_copy))
             res = test_gene(df_copy, gene_name, T, stbl=stbl)
             df0 = df0.append(res, ignore_index=True)
-
     return df0
 
 
 def main_test_all_genes(df, T=100, stbl=False):
     gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
 
-    print("Testing all genes...")
+    loogging.info("Testing all genes...")
 
     res = pd.DataFrame()
     for gene_name in tqdm(gene_names):

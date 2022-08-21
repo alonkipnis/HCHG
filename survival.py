@@ -184,6 +184,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     randomize = kwargs.get('randomize', False)
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
+    stbl = kwargs.get('stbl', True)
+    discard_ones = kwargs.get('discard_ones', True) # ignore P-values that are one
 
     test_results = {}
 
@@ -195,7 +197,9 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
         pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='greater',
                                     randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False)
+        if discard_ones:
+            pvals_greater = pvals_greater[pvals_greater < 1]
+        mt = MultiTest(pvals_greater, stbl=stbl)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc_greater'] = mt.hc()[0]
@@ -211,6 +215,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
         pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='less',
                                     randomize=randomize)
+        if discard_ones:
+            pvals_greater = pvals_greater[pvals_greater < 1]
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
@@ -227,6 +233,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
         pvals_greater = mutli_pvals(Nt1, Nt2, Ot1, Ot2, alternative='two-sided',
                                     randomize=randomize)
+        if discard_ones:
+            pvals_greater = pvals_greater[pvals_greater < 1]
         mt = MultiTest(pvals_greater, stbl=False)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect

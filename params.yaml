@@ -16,7 +16,7 @@ r:    # signal strength
   type: 'range(float)'
   min: 0
   max: 2.2
-  length: 17
+  length: 13
 
 beta: # signal rarity
   type: 'list(float)'
@@ -51,4 +51,4 @@ N2:   # Total in Group 2
 lam0:
   type: 'list(float)'
   values:
-    - 3
+    - 1
