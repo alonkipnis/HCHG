@@ -1,3 +1,6 @@
+# Analyze data obtained after sampling from the null distributon
+# report critical values and estimated null parameters
+
 import numpy as np
 import scipy
 from tqdm import tqdm
@@ -29,7 +32,7 @@ def std_95(x):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze SCNAB')
+    parser = argparse.ArgumentParser(description='Analyze SCANB')
     parser.add_argument('-i', type=str, help='input file', default='')
     args = parser.parse_args()
     #

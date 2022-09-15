@@ -17,6 +17,8 @@ from scipy.stats import poisson, norm, hypergeom, uniform
 from sample_survival_data import *
 from lifelines.statistics import logrank_test as logrank_lifeline
 
+
+STBL = False
 EPS = 1e-20
 
 
@@ -184,7 +186,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     randomize = kwargs.get('randomize', False)
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
-    stbl = kwargs.get('stbl', True)
+    stbl = kwargs.get('stbl', STBL)
     discard_ones = kwargs.get('discard_ones', True) # ignore P-values that are one
 
     test_results = {}
@@ -217,7 +219,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
                                     randomize=randomize)
         if discard_ones:
             pvals_greater = pvals_greater[pvals_greater < 1]
-        mt = MultiTest(pvals_greater, stbl=False)
+        mt = MultiTest(pvals_greater, stbl=stbl)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc_less'] = mt.hc()[0]
@@ -235,7 +237,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
                                     randomize=randomize)
         if discard_ones:
             pvals_greater = pvals_greater[pvals_greater < 1]
-        mt = MultiTest(pvals_greater, stbl=False)
+        mt = MultiTest(pvals_greater, stbl=stbl)
         # if not using stbl=False, then sometimes
         # HC misses the significance of the strongest effect
         test_results['hc'] = mt.hc()[0]
@@ -265,7 +267,7 @@ def simulate_null(T, N1, N2, lam0, nMonte):
         Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, 0, 0)
         Ot1 = -np.diff(Nt1)
         Ot2 = -np.diff(Nt2)
-        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=True)
+        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
@@ -286,7 +288,7 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
                 Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
                 Ot1 = -np.diff(Nt1)
                 Ot2 = -np.diff(Nt2)
-                res1 = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=True)
+                res1 = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL)
                 res = pd.DataFrame(res1, index=[0])
                 res['mu'] = mu
                 res['eps'] = eps
@@ -310,7 +312,7 @@ def evaluate(itr, T, N1, N2, lam0, beta, r):
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
-                              randomized=True, alternative='both', stbl=True)
+                              randomized=True, alternative='both', stbl=STBL)
     return res
 
 

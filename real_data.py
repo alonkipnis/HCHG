@@ -4,7 +4,8 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-plt.rcParams['figure.figsize'] =  [8, 6]
+
+plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 from tqdm import tqdm
 from scipy.stats import poisson, binom, norm, hypergeom, uniform, bernoulli
@@ -13,8 +14,22 @@ from sample_survival_data import *
 import argparse
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
-from survival import ( hypergeom_test, q95, log_rank_test, multi_pvals, evaluate_test_stats)
+from survival import (hypergeom_test, q95, log_rank_test, multi_pvals, evaluate_test_stats)
+
+
+def infmean(x):
+    "mean ignoring inf values"
+    return np.mean(np.ma.masked_invalid(x))
+
+
+def std_95(x):
+    return scipy.stats.mstats.mjci(x, prob = [0.95])[0]
+
+
+def infstd(x):
+    return np.std(np.ma.masked_invalid(x))
 
 
 def arrange_group(dfg):
@@ -71,12 +86,10 @@ def two_groups_gene(data, gene_name):
 
     dfm['at-risk1'] = dfm['total1']
     dfm['at-risk2'] = dfm['total2']
-    dfm.loc[dfm.index[1:], 'at-risk1'] = dfm['total1'].values[0] - dfm['dead1'].cumsum().values[:-1] - dfm[
-                                                                                                           'censored1'].cumsum().values[
-                                                                                                       :-1]
-    dfm.loc[dfm.index[1:], 'at-risk2'] = dfm['total2'].values[0] - dfm['dead2'].cumsum().values[:-1] - dfm[
-                                                                                                           'censored2'].cumsum().values[
-                                                                                                       :-1]
+    dfm.loc[dfm.index[1:], 'at-risk1'] = dfm['total1'].values[0] \
+                                         - dfm['dead1'].cumsum().values[:-1] - dfm['censored1'].cumsum().values[:-1]
+    dfm.loc[dfm.index[1:], 'at-risk2'] = dfm['total2'].values[0] \
+                                         - dfm['dead2'].cumsum().values[:-1] - dfm['censored2'].cumsum().values[:-1]
 
     # dfm['at-risk2'] = dfm['at-risk2'].max() - dfm['dead2'].cumsum() - dfm['censored2'].cumsum()
     # dfm['at-risk2'] = dfm['at-risk2'].fillna(method='bfill')
@@ -106,6 +119,7 @@ def reduce_time_resolution(df, T):
         r['at-risk2'] = dft['at-risk2'].max()
         dfc = dfc.append(r, ignore_index=True)
     return dfc.fillna(method='backfill').dropna()
+
 
 def test_gene(data, gene_name, T, stbl=False):
     """
@@ -139,8 +153,8 @@ def test_gene(data, gene_name, T, stbl=False):
 
     r['x0'] = dfr['at-risk1'].max()
     r['y0'] = dfr['at-risk2'].max()
-    r['lam1'] = ( np.log(dfr['at-risk1'].max()) - np.log(dfr['at-risk1'].min()) ) / T
-    r['lam2'] = ( np.log(dfr['at-risk2'].max()) - np.log(dfr['at-risk2'].min()) ) / T
+    r['lam1'] = (np.log(dfr['at-risk1'].max()) - np.log(dfr['at-risk1'].min())) / T
+    r['lam2'] = (np.log(dfr['at-risk2'].max()) - np.log(dfr['at-risk2'].min())) / T
 
     rdf = pd.DataFrame(r, index=[0])
     revdf = pd.DataFrame(rrev, index=[0])
@@ -158,8 +172,9 @@ def std_95(x):
 
 def simulate_null_data(df, T, rep=1, stbl=True):
     """
-    Generate random group assignments.
-    Evaluate test statistics. Here we assume that df
+    Generate random partition and Evaluate test statistics. 
+
+    Here we assume that df
     is the data in which the group assignments are
     in columns 1 to -2 (everything excluding the first column and last two)
 
@@ -176,29 +191,32 @@ def simulate_null_data(df, T, rep=1, stbl=True):
                 genes x repetitions
     """
 
-    df0 = pd.DataFrame()
-    all_genes = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
-    genes_to_test = all_genes
+    def sample_balanced_assignmet(T):
+        """ Perfectly balanced assignment """
+        a = np.random.rand(T)
+        return a < np.median(a)
 
+    df0 = pd.DataFrame()
     logging.debug("Simulating null using real data...")
 
-    df_copy = df.copy()
+    df_test = df[['time', 'event']]
 
-    logging.debug("Testing {len(genes_to_test)} 'null' genes...")
-    for gene_name in tqdm(genes_to_test):
-        prob = 0.5
-        for _ in range(rep):
-            logging.debug(f'Sampling a random groups assignment info')
-            df_copy.loc[:, gene_name] = bernoulli.rvs(p=prob, size=len(df_copy))
-            res = test_gene(df_copy, gene_name, T, stbl=stbl)
-            df0 = df0.append(res, ignore_index=True)
+    for _ in tqdm(range(rep)):
+        logging.debug(f'Sampling a random assignment')
+        a = sample_balanced_assignmet(len(df_test))
+        df_test = pd.DataFrame({'random_sample': a,
+                                'time': df['time'],
+                                'event': df['event']})
+        # df_test.loc[:, 'random_sample'] = a
+        res = test_gene(df_test, 'random_sample', T, stbl=stbl)
+        df0 = df0.append(res, ignore_index=True)
     return df0
 
 
 def main_test_all_genes(df, T=100, stbl=False):
     gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
 
-    loogging.info("Testing all genes...")
+    logging.info("Testing all genes...")
 
     res = pd.DataFrame()
     for gene_name in tqdm(gene_names):
@@ -206,14 +224,6 @@ def main_test_all_genes(df, T=100, stbl=False):
         res = res.append(r, ignore_index=True)
 
     return res
-
-
-def infmean(x):
-    return np.mean(np.ma.masked_invalid(x))
-
-
-def infstd(x):
-    return np.std(np.ma.masked_invalid(x))
 
 
 def report_null_stats(df0, T, precision=5):
@@ -224,14 +234,13 @@ def report_null_stats(df0, T, precision=5):
     print(np.round(dsp, precision))
 
     if ('lam1' in dsp) and ('lam2' in dsp):
-        m = (infmean(df0['lam1']) + infmean(df0['lam2']))/2
+        m = (infmean(df0['lam1']) + infmean(df0['lam2'])) / 2
         s = np.sqrt((infstd(df0['lam1']) ** 2 + infstd(df0['lam2']) ** 2) / 2)
         print("lam * T = ", np.round(m * T, precision))
         print("SE(lam*T) = ", np.round(s * T, precision))
 
 
 def report_results(df0, res):
-
     crit_vals = df0.agg([q95]).filter(
         ['log_rank_greater', 'hc_greater', 'hc_greater_rev', 'log_rank_greater_rev'])
 
@@ -257,10 +266,13 @@ def report_results(df0, res):
     print("Total reported: ", HC1_LR1 + HC1_LR0 + HC0_LR1 + HC0_LR0)
     print("Total: ", len(res))
 
+    return res[log_rank_0 & hc_1]
+
 
 def save_results(res, fn):
     print(f"Saving to {fn}")
     res.to_csv(fn)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze SCNAB')
@@ -273,6 +285,7 @@ def main():
     parser.add_argument('--stbl', action='store_true')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--report-results', action='store_true')
+    parser.add_argument('--analyze', action='store_true')
     args = parser.parse_args()
     #
 
@@ -298,17 +311,6 @@ def main():
         res = pd.read_csv(f'{args.o}_{stbl}_T{T}.csv')
         df0 = pd.read_csv(f'{args.o}_null_{stbl}_T{T}.csv')
         report_results(df0, res)
-
-
-
-
-
-
-
-#np.seterr(all='warn')
-
-
-
 
 
 if __name__ == '__main__':

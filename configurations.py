@@ -1,5 +1,5 @@
-# to do:
-# either transform into a model GenerateConfiguration
+# WE NEED TO get rid of the functions here. 
+# Either transform into a model GenerateConfiguration
 # or only load configurations from a .csv file
 import numpy as np
 import itertools
