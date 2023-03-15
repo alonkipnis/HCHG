@@ -1,6 +1,5 @@
-# Survival Analysis with Possible Rare Differences Between the Gorups
+# Higher Criticism of Hypergeometric (HCHG) P-values for Survival Analysis with Sensitivity to Possible Rare Excessive Risk
 
-This repository conaitns code and data for empirical evaluations.
+This repository conaitns code for reporoducing the results reported in the manuscript:
 
-Using the para_run library:
-````
+Ben Galili, Alon Kipnis and Zohar Yakhini. 2023. Survival Analysis with Sensitivity to Rare and Weak Temporal Differences. 
