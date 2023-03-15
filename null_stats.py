@@ -1,9 +1,8 @@
-# Analyze data obtained after sampling from the null distributon
+# Analyze data obtained after sampling from the null distribution
 # report critical values and estimated null parameters
 
 import numpy as np
 import scipy
-from tqdm import tqdm
 import pandas as pd
 import argparse
 import re
@@ -18,6 +17,7 @@ def quantile(x, q):
         return np.nan
     else:
         return pd.Series.quantile(x, q)
+
 
 def q95(x):
     return quantile(x, .95)

@@ -10,13 +10,12 @@ mpl.style.use('ggplot')
 from tqdm import tqdm
 from scipy.stats import poisson, binom, norm, hypergeom, uniform, bernoulli
 import pandas as pd
-from sample_survival_data import *
 import argparse
 
 import logging
 
 logging.basicConfig(level=logging.INFO)
-from survival import (hypergeom_test, q95, log_rank_test, multi_pvals, evaluate_test_stats)
+from survival import (hypergeom_test, q95, multi_pvals, evaluate_test_stats)
 
 
 def infmean(x):
@@ -142,20 +141,18 @@ def test_gene(data, gene_name, T, stbl=False):
         dfr = two_groups_gene(df, gene_name)
     r = evaluate_test_stats(dfr['at-risk1'].values, dfr['at-risk2'].values,
                             dfr['dead1'].values, dfr['dead2'].values,
-                            stbl=stbl, randomize=False
+                            stbl=stbl, randomize=False, alternative='greater'
                             )
     rrev = evaluate_test_stats(dfr['at-risk2'].values, dfr['at-risk1'].values,
                                dfr['dead2'].values, dfr['dead1'].values,
-                               stbl=stbl, randomize=False)
+                               stbl=stbl, randomize=False, alternative='greater')
 
     r['name'] = gene_name
     rrev['name'] = gene_name
 
     r['x0'] = dfr['at-risk1'].max()
     r['y0'] = dfr['at-risk2'].max()
-    r['lam1'] = (np.log(dfr['at-risk1'].max()) - np.log(dfr['at-risk1'].min())) / T
-    r['lam2'] = (np.log(dfr['at-risk2'].max()) - np.log(dfr['at-risk2'].min())) / T
-
+    r['lam'] = (dfr['dead1'].sum() + dfr['dead2'].sum()) / (dfr['at-risk1'].sum() + dfr['at-risk2'].sum())
     rdf = pd.DataFrame(r, index=[0])
     revdf = pd.DataFrame(rrev, index=[0])
 
@@ -228,14 +225,14 @@ def main_test_all_genes(df, T=100, stbl=False):
 
 def report_null_stats(df0, T, precision=5):
     dsp = df0.agg([q95, 'mean', 'std']).filter(
-        ['log_rank_greater', 'hc_greater', 'x0', 'y0', 'lam1', 'lam2'])
+        ['log_rank_greater', 'hc_greater', 'x0', 'y0', 'lam'])
     dsp.loc['std_95'] = [std_95(df0[c]) for c in dsp]
 
     print(np.round(dsp, precision))
 
-    if ('lam1' in dsp) and ('lam2' in dsp):
-        m = (infmean(df0['lam1']) + infmean(df0['lam2'])) / 2
-        s = np.sqrt((infstd(df0['lam1']) ** 2 + infstd(df0['lam2']) ** 2) / 2)
+    if 'lam' in dsp:
+        m = infmean(df0['lam'])
+        s = np.sqrt(infstd(df0['lam']))
         print("lam * T = ", np.round(m * T, precision))
         print("SE(lam*T) = ", np.round(s * T, precision))
 
@@ -259,6 +256,8 @@ def report_results(df0, res):
     HC0_LR1 = np.sum(log_rank_1 & hc_0)
     HC0_LR0 = np.sum(log_rank_0 & hc_0)
 
+    print("Discoverable by HC: ", np.sum(hc_1))
+    print("Discoverable by LR: ", np.sum(log_rank_1))
     print("Discoverable by HC and LR: ", HC1_LR1)
     print("Discoverable by HC but not LR: ", HC1_LR0)
     print("Discoverable by LR but not HC: ", HC0_LR1)
@@ -284,21 +283,27 @@ def main():
     parser.add_argument('--null', action='store_true')
     parser.add_argument('--stbl', action='store_true')
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--report-results', action='store_true')
+    parser.add_argument('--report-results-only', action='store_true')
     parser.add_argument('--analyze', action='store_true')
     args = parser.parse_args()
     #
 
     T = args.T
     stbl = args.stbl
+    M =args.M
+    print("stbl = ", stbl)
 
-    if not args.report_results:
+    if not args.report_results_only:
         print(f"Reading data from {args.i}...")
         df = pd.read_csv(args.i)
+    else:
+        res = pd.read_csv(f'{args.o}_{stbl}_T{T}.csv')
+        df0 = pd.read_csv(f'{args.o}_null_{stbl}_T{T}_M{M}.csv')
+        report_results(df0, res)
 
     if args.null:
         print("Simulating null...")
-        res = simulate_null_data(df, T, rep=args.M, stbl=False)
+        res = simulate_null_data(df, T, rep=args.M, stbl=stbl)
         fn = f'{args.o}_null_{stbl}_T{T}_M{args.M}.csv'
         save_results(res, fn)
         report_null_stats(res, T)
@@ -307,10 +312,7 @@ def main():
         res = main_test_all_genes(df, T, stbl)
         fn = f'{args.o}_{stbl}_T{T}.csv'
         save_results(res, fn)
-    if args.report_results:
-        res = pd.read_csv(f'{args.o}_{stbl}_T{T}.csv')
-        df0 = pd.read_csv(f'{args.o}_null_{stbl}_T{T}.csv')
-        report_results(df0, res)
+
 
 
 if __name__ == '__main__':

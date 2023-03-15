@@ -14,9 +14,8 @@ plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
 from scipy.stats import poisson, norm, hypergeom, uniform
-from sample_survival_data import *
+from sample_survival_poisson import *
 from lifelines.statistics import logrank_test as logrank_lifeline
-
 
 STBL = False
 EPS = 1e-20
@@ -60,6 +59,7 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     else:
         pval = 2 * norm.cdf(-np.abs(z))
 
+    # alternative only affect pval, not z score
     return z, pval
 
 
@@ -89,13 +89,24 @@ def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     if randomize:
         U = uniform.rvs(size=len(k))
     else:
-        U = 1
+        U = 0
 
     if alternative == 'greater':
-        return hypergeom.sf(k, M, n, N) + U * hypergeom.pmf(k, M, n, N)
+        return hypergeom.sf(k - 1, M, n, N) - U * hypergeom.pmf(k, M, n, N)  # sf is 1-cdf, so Pr(X >= k) = Pr(X>k-1)
     if alternative == 'less':
-        return hypergeom.cdf(k - 1, M, n, N) + (1-U) * hypergeom.pmf(k, M, n, N)
-    raise ValueError("two-sided alternative is not available yet")
+        return hypergeom.cdf(k, M, n, N) - U * hypergeom.pmf(k, M, n, N)
+    if alternative == 'two-sided':
+        l1 = hypergeom.cdf(k, M, n, N)
+        l2 = hypergeom.cdf(n - k, M, n, N)
+
+        r1 = hypergeom.sf(k - 1, M, n, N)
+        r2 = hypergeom.sf(n - k + 1, M, n, N)
+
+        l = np.minimum(l1, l2) - U * ((l1 < l2) * hypergeom.pmf(k, M, n, N) + (l1 > l2) * hypergeom.pmf(n - k, M, n, N))
+        r = np.minimum(r1, r2) - U * ((r1 < r2) * hypergeom.pmf(k, M, n, N) + (r1 > r2) * hypergeom.pmf(n - k, M, n, N))
+        return l + r
+
+    raise ValueError("'alternative' must be one of 'grater', 'less', or 'two-sided'")
 
 
 def q95(x):
@@ -146,24 +157,6 @@ def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
     return pvals
 
 
-def atmoic_experiment(T, N1, N2, eps, r):
-    """
-    Sample from survival data; evalaute several test statistics
-    
-    Args:
-    -----
-    :T:    time horizon (~ total number of events)
-    :N1:   total in group1 at t=0
-    :N2:   total in group1 at t=0
-    :eps:  fraction of non-null events
-    :r:   intensity of non-null events
-    
-    """
-
-    Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, r)
-    return evaluate_test_stats(Nt1, Nt2)
-
-
 def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     """
     Evaluate many tests for comparing the lists Nt1 and Nt2
@@ -186,71 +179,74 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     randomize = kwargs.get('randomize', False)
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
-    stbl = kwargs.get('stbl', STBL)
-    discard_ones = kwargs.get('discard_ones', True) # ignore P-values that are one
+    stbl = kwargs.get('stbl', False)
+    discard_ones = kwargs.get('discard_ones', True)  # ignore P-values that are one
 
-    test_results = {}
+    # test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
 
-    #test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
+    if alternative == 'both':
+        r_greater = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='greater',
+                                         stbl=stbl, randomize=randomize, discard_ones=discard_ones)
+        r_less = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='less',
+                                      stbl=stbl, randomize=randomize, discard_ones=discard_ones)
 
-    if alternative == 'both' or alternative == 'greater':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='greater')
-        test_results['log_rank_greater'] = np.abs(lr)  # large values are significant
+        return dict([(k + '_greater', r_greater[k]) for k in r_greater.keys()]
+                    + [(k + '_less', r_less[k]) for k in r_less.keys()]
+                    )
+    else:
+        r = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative=alternative,
+                                 stbl=stbl, randomize=randomize, discard_ones=discard_ones)
 
-        pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='greater',
-                                    randomize=randomize)
-        if discard_ones:
-            pvals_greater = pvals_greater[pvals_greater < 1]
-        mt = MultiTest(pvals_greater, stbl=stbl)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc_greater'] = mt.hc()[0]
-        test_results['fisher_greater'] = mt.fisher()
-        test_results['min_p_greater'] = mt.minp()
-        test_results['berk_jones_greater'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon_greater'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='greater').pvalue + EPS)
-
-    if alternative == 'both' or alternative == 'less':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='less')
-        test_results['log_rank_less'] = np.abs(lr)  # large values are significant
-
-        pvals_greater = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative='less',
-                                    randomize=randomize)
-        if discard_ones:
-            pvals_greater = pvals_greater[pvals_greater < 1]
-        mt = MultiTest(pvals_greater, stbl=stbl)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc_less'] = mt.hc()[0]
-        test_results['fisher_less'] = mt.fisher()
-        test_results['min_p_less'] = mt.minp()
-        test_results['berk_jones_less'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon_less'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='less').pvalue + EPS)
-
-    if alternative == 'two-sided':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided')
-        test_results['log_rank'] = np.abs(lr)
-
-        pvals_greater = mutli_pvals(Nt1, Nt2, Ot1, Ot2, alternative='two-sided',
-                                    randomize=randomize)
-        if discard_ones:
-            pvals_greater = pvals_greater[pvals_greater < 1]
-        mt = MultiTest(pvals_greater, stbl=stbl)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc'] = mt.hc()[0]
-        test_results['fisher'] = mt.fisher()
-        test_results['min_p'] = mt.minp()
-        test_results['berk_jones'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='two-sided').pvalue + EPS)
+        return dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
     return test_results
 
 
-def simulate_null(T, N1, N2, lam0, nMonte):
+def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
+                         randomize=False,
+                         stbl=False, discard_ones=True):
+    """
+    Evaluate many tests for comparing the lists Nt1 and Nt2
+
+    Args:
+    :Nt1: first list of at-risk subjects
+    :Nt2: second list of at-risk subjects
+    :Ot1: number of events in group 1
+    :Ot2: number of events in group 2
+
+
+    Compute several statistics of the two-sample data:
+    log-rank
+    higher criticism
+    Fisher combination test
+    minimum P-value
+    Berk-Jones
+    Wilcoxon ranksum
+    """
+
+    test_results = {}
+    lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative=alternative)
+    test_results['log_rank'] = lr  # large values are significant
+    test_results['log_rank_pval'] = lr_pval  # alternative only affecting p-value, not lr score
+
+    pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative=alternative,
+                        randomize=randomize)
+    if discard_ones:
+        pvals = pvals[pvals < 1]
+    mt = MultiTest(pvals, stbl=stbl)
+    # if not using stbl=False, then sometimes
+    # HC misses the significance of the strongest effect
+    test_results['hc'] = mt.hc()[0]
+    test_results['fisher'] = mt.fisher()
+    test_results['min_p'] = mt.minp()
+    test_results['berk_jones'] = mt.berk_jones(gamma=.45)
+    test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
+        Nt1, Nt2, alternative=alternative).pvalue + EPS)
+
+    return test_results
+
+
+def simulate_null(T, N1, N2, lam0, nMonte, alternative='greater'):
     """
     Args:
     -----
@@ -264,10 +260,10 @@ def simulate_null(T, N1, N2, lam0, nMonte):
     df0 = pd.DataFrame()
     print("Simulating null...")
     for itr in tqdm(range(nMonte)):
-        Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, 0, 0)
+        Nt1, Nt2 = sample_survival_poisson(T, N1, N2, lam0, 0, 0)
         Ot1 = -np.diff(Nt1)
         Ot2 = -np.diff(Nt2)
-        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL)
+        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL, alternative=alternative)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
@@ -285,7 +281,7 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
         for beta in bb:
             for r in rr:
                 eps = T ** -beta  # sparsity rate
-                Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
+                Nt1, Nt2 = sample_survival_poisson(T, N1, N2, lam0, eps, r)
                 Ot1 = -np.diff(Nt1)
                 Ot2 = -np.diff(Nt2)
                 res1 = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL)
@@ -301,14 +297,14 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
 
 def evaluate(itr, T, N1, N2, lam0, beta, r):
     """
-    order of argument is important!
+    order of arguments is important!
     evalaute an atomic experiment
     """
 
     eps = T ** (-beta)
     lam = lam0 * np.ones(T) / T
 
-    Nt1, Nt2 = sample_survival_data(T, N1, N2, lam, eps, r)
+    Nt1, Nt2 = sample_survival_poisson(T, N1, N2, lam, eps, r)
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
@@ -321,7 +317,18 @@ def main():
     N1 = 5000
     N2 = 5000
     beta = .7
-    r = 1
+
+    print('Under null parameters')
+
+    r = 0
+    lam0 = 3
+
+    res = evaluate(1, T, N1, N2, lam0, beta, r)
+    print(res)
+
+    print('Under alt. parameters')
+
+    r = 2
     lam0 = 3
 
     res = evaluate(1, T, N1, N2, lam0, beta, r)

@@ -15,7 +15,7 @@ mpl.style.use('ggplot')
 
 from scipy.stats import poisson, binom, norm, hypergeom, uniform
 
-from sample_survival_data import *
+from sample_survival_poisson import *
 from lifelines.statistics import logrank_test
 
 
