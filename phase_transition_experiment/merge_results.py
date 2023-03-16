@@ -8,7 +8,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='merge resukts')
     parser.add_argument('-i', type=str, help='input files', default='')
-    parser.add_argument('-o', type=str, help='input files', default='results/merged.csv')
+    parser.add_argument('-o', type=str, help='input files', default='../results/merged.csv')
     args = parser.parse_args()
     #
 

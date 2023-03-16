@@ -1,4 +1,4 @@
-names:  # order matter! order should match that received by `evalaute`
+names:  # order matter! order should match the one received by `evalaute`
   - 'itr'
   - 'T'
   - 'N1'

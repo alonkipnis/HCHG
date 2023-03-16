@@ -111,7 +111,7 @@ def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
 
 def q95(x):
     """
-    Compute the 95-th percentile of the vector x
+    The 95-th percentile of the vector x
     """
     if x.dtypes.kind == 'O':
         return np.nan

@@ -11,6 +11,9 @@ import argparse
 
 from dask.distributed import Client, progress
 
+import sys
+
+sys.path.append("../")
 from survival import evaluate
 from configurations import load_configurations
 

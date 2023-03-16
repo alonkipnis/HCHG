@@ -85,7 +85,7 @@ def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-i', type=str, help='results file', default='results.csv')
     parser.add_argument('-n', type=str, help='null data', default="")
-    parser.add_argument('-o', type=str, help='output dir', default='Figs/')
+    parser.add_argument('-o', type=str, help='output dir', default='../Figs/')
     args = parser.parse_args()
     #
     logging.info(f"Reading from {args.i}...")
