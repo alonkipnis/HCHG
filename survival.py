@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import scipy
-import seaborn
 
 from twosample import binom_test
 from multitest import MultiTest
@@ -15,7 +14,13 @@ mpl.style.use('ggplot')
 
 from scipy.stats import poisson, norm, hypergeom, uniform
 from sample_survival_poisson import *
-from lifelines.statistics import logrank_test as logrank_lifeline
+
+
+# from lifelines.statistics import logrank_test as logrank_lifeline
+# def log_rank_test_lifeline(Nt1, Nt2):
+#     lr = logrank_lifeline(Nt1, Nt2).summary
+#     return lr['test_statistic'][0], lr['p'][0]
+
 
 STBL = False
 EPS = 1e-20
@@ -61,11 +66,6 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
 
     # alternative only affect pval, not z score
     return z, pval
-
-
-def log_rank_test_lifeline(Nt1, Nt2):
-    lr = logrank_lifeline(Nt1, Nt2).summary
-    return lr['test_statistic'][0], lr['p'][0]
 
 
 def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):

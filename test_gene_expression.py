@@ -90,9 +90,6 @@ def two_groups_gene(data, gene_name):
     dfm.loc[dfm.index[1:], 'at-risk2'] = dfm['total2'].values[0] \
                                          - dfm['dead2'].cumsum().values[:-1] - dfm['censored2'].cumsum().values[:-1]
 
-    # dfm['at-risk2'] = dfm['at-risk2'].max() - dfm['dead2'].cumsum() - dfm['censored2'].cumsum()
-    # dfm['at-risk2'] = dfm['at-risk2'].fillna(method='bfill')
-
     return dfm
 
 
