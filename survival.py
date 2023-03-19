@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import scipy
 
@@ -13,7 +12,7 @@ plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
 from scipy.stats import poisson, norm, hypergeom, uniform
-from sample_survival_poisson import *
+from phase_transition_experiment.sample_survival_poisson import *
 
 
 # from lifelines.statistics import logrank_test as logrank_lifeline
@@ -235,9 +234,12 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
         pvals = pvals[pvals < 1]
     mt = MultiTest(pvals, stbl=stbl)
     # if not using stbl=False, then sometimes
-    # HC misses the significance of the strongest effect
+    # HC cannot detect a single dominnate effect
+    
     test_results['hc'] = mt.hc()[0]
-    test_results['fisher'] = mt.fisher()
+    fisher = mt.fisher()
+    test_results['fisher'] = fisher[0]
+    test_results['fisher_pval'] = fisher[1]
     test_results['min_p'] = mt.minp()
     test_results['berk_jones'] = mt.berk_jones(gamma=.45)
     test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
@@ -295,7 +297,7 @@ def run_many_experiments(T, N1, N2, lam0, nMonte):
     return df1
 
 
-def evaluate(itr, T, N1, N2, lam0, beta, r):
+def evaluate_rare_and_weak(itr, T, N1, N2, lam0, beta, r):
     """
     order of arguments is important!
     evalaute an atomic experiment

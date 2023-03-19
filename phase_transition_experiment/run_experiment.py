@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import scipy
-import seaborn
 
 from twosample import binom_test_two_sided
 from multitest import MultiTest
@@ -13,10 +12,13 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
-from scipy.stats import poisson, binom, norm, hypergeom, uniform
+from scipy.stats import poisson, norm, hypergeom, uniform
+from sample_survival_poisson import sample_survival_poisson as sample_survival_data
 
-from sample_survival_poisson import *
-from lifelines.statistics import logrank_test
+import sys
+sys.path.append("../")
+from survival import evaluate_test_stats
+#from lifelines.statistics import logrank_test
 
 
 def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
@@ -62,8 +64,7 @@ def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
     return z, pval
 
 def log_rank_test(Nt1, Nt2, alternative='two-sided'):
-    lr = logrank_test(Nt1, Nt2).summary
-    return lr['test_statistic'][0], lr['p'][0]
+    return _log_rank_test(Nt1, Nt2, alternative=alternative)
 
 def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
@@ -159,78 +160,9 @@ def atmoic_experiment(T, N1, N2, eps, mu):
     """
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
-    return evaluate_test_stats(Nt1, Nt2)
-
-
-def evaluate_test_stats(Nt1, Nt2, **kwargs):
-    """
-    Args:
-    :Nt1: first list of events
-    :Nt2: second list of events
-    
-    Compute several statistics of the two-sample data:
-    log-rank
-    higher criticism
-    Fisher combination test
-    minimum P-value
-    Berk-Jones
-    Wilcoxon ranksum
-    """
-
-    randomize = kwargs.get('randomize', True)
-    alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
-
-    test_results = {}
-
-    if alternative == 'both' or alternative == 'greater':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='greater')
-        test_results['log_rank_greater'] = lr
-
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='greater',
-                                    randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc_greater'] = mt.hc()[0]
-        test_results['fisher_greater'] = mt.fisher()[0]
-        test_results['min_p_greater'] = mt.minp()
-        test_results['berk_jones_greater'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon_greater'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='greater').pvalue)
-
-    if alternative == 'both' or alternative == 'less':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='less')
-        test_results['log_rank_less'] = lr
-
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='less',
-                                    randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc_less'] = mt.hc()[0]
-        test_results['fisher_less'] = mt.fisher()[0]
-        test_results['min_p_less'] = mt.minp()
-        test_results['berk_jones_less'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon_less'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='less').pvalue)
-
-    if alternative == 'two-sided':
-        lr, lr_pval = log_rank_test(Nt1, Nt2, alternative='two-sided')
-        test_results['log_rank'] = lr
-
-        pvals_greater = mutli_pvals(Nt1, Nt2, alternative='two-sided',
-                                    randomize=randomize)
-        mt = MultiTest(pvals_greater, stbl=False)
-        # if not using stbl=False, then sometimes
-        # HC misses the significance of the strongest effect
-        test_results['hc'] = mt.hc()[0]
-        test_results['fisher'] = mt.fisher()[0]
-        test_results['min_p'] = mt.minp()
-        test_results['berk_jones'] = mt.berk_jones(gamma=.45)
-        test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-            Nt1, Nt2, alternative='two-sided').pvalue)
-
-    return test_results
+    Ot1 = -np.diff(Nt1)
+    Ot2 = -np.diff(Nt2)
+    return evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2)
 
 
 def run_one_experiment():
@@ -241,8 +173,10 @@ def run_one_experiment():
     mu = .02  # signal strength
 
     Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
-
-    res = evaluate_test_stats(Nt1, Nt2, randomized=True, alternative='both')
+    Ot1 = -np.diff(Nt1)
+    Ot2 = -np.diff(Nt2)
+    
+    res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, randomized=True, alternative='both')
     print(res)
 
 
@@ -262,7 +196,9 @@ def simulate_null(N1, N2, T, nMonte, out_filename='under_null'):
     print("Simulating null...")
     for itr in tqdm(range(nMonte)):
         Nt1, Nt2 = sample_survival_data(T, N1, N2, 0, 0)
-        res = evaluate_test_stats(Nt1, Nt2)
+        Ot1 = -np.diff(Nt1)
+        Ot2 = -np.diff(Nt2)
+        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
@@ -276,21 +212,22 @@ def run_many_experiments(T, N1, N2):
     # under non-null
     bb = np.linspace(.5, .9, 7)
     rr = np.sqrt(np.linspace(0.01, 1, 9))
-    N = np.min(N1, N2)
-    mm = 2 * rr * np.log(T) / N
+    N = np.minimum(N1, N2)
+    lam0 = np.ones(T)/T
 
     df1 = pd.DataFrame()
     nMonte = 100  # number of experiments
 
     for itr in tqdm(range(nMonte)):
         for beta in bb:
-            for mu in mm:
+            for r in rr:
                 eps = T ** -beta  # sparsity rate
-                Nt1, Nt2 = sample_survival_data(T, N1, N2, eps, mu)
-                res1 = evaluate_test_stats(Nt1, Nt2)
-                res2 = evaluate_test_stats(Nt2, Nt1)
+                Nt1, Nt2 = sample_survival_data(T, N1, N2, lam0, eps, r)
+                Ot1 = -np.diff(Nt1)
+                Ot2 = -np.diff(Nt2)
+                res1 = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2)
                 res = pd.DataFrame(res1, index=[0])
-                res['mu'] = mu
+                res['r'] = r
                 res['eps'] = eps
                 res['beta'] = beta
                 res['itr'] = itr
@@ -299,7 +236,8 @@ def run_many_experiments(T, N1, N2):
 
 
 def evaluate():
-    pass
+    r = run_many_experiments(100, 500, 500)
+    print(r)
 
 
 def main():

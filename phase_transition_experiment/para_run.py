@@ -14,7 +14,8 @@ from dask.distributed import Client, progress
 import sys
 
 sys.path.append("../")
-from survival import evaluate
+
+from survival import evaluate_rare_and_weak as evaluate
 from configurations import load_configurations
 
 
