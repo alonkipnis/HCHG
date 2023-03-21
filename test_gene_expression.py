@@ -113,7 +113,8 @@ def reduce_time_resolution(df, T):
         r = dft.sum()[['dead1', 'dead2', 'censored1', 'censored2']]
         r['at-risk1'] = dft['at-risk1'].max()
         r['at-risk2'] = dft['at-risk2'].max()
-        dfc = dfc.append(r, ignore_index=True)
+        r_df = pd.DataFrame(r).T
+        dfc = pd.concat([dfc, r_df])
     return dfc.fillna(method='backfill').dropna()
 
 
@@ -203,7 +204,8 @@ def simulate_null_data(df, T, rep=1, stbl=True):
                                 'event': df['event']})
         # df_test.loc[:, 'random_sample'] = a
         res = test_gene(df_test, 'random_sample', T, stbl=stbl)
-        df0 = df0.append(res, ignore_index=True)
+        res_df = pd.DataFrame(res)
+        df0 = pd.concat([df0, res_df])
     return df0
 
 
@@ -221,8 +223,8 @@ def main_test_all_genes(df, T=100, stbl=False):
 
 
 def report_null_stats(df0, T, precision=5):
-    dsp = df0.agg([q95, 'mean', 'std']).filter(
-        ['log_rank_greater', 'hc_greater', 'x0', 'y0', 'lam'])
+    dsp = df0.filter(
+        ['log_rank_greater', 'hc_greater', 'x0', 'y0', 'lam']).agg([q95, 'mean', 'std'])
     dsp.loc['std_95'] = [std_95(df0[c]) for c in dsp]
 
     print(np.round(dsp, precision))

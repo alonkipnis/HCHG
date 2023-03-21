@@ -52,7 +52,6 @@ class ParaRun(object):
 
         $ 
 
-
     """
 
     def __init__(self, atomic_experiment_function, params='params.yaml'):
