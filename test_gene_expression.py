@@ -14,6 +14,7 @@ import argparse
 
 import logging
 
+
 logging.basicConfig(level=logging.INFO)
 from survival import (hypergeom_test, q95, multi_pvals, evaluate_test_stats)
 
@@ -206,6 +207,7 @@ def simulate_null_data(df, T, rep=1, stbl=True):
         res = test_gene(df_test, 'random_sample', T, stbl=stbl)
         res_df = pd.DataFrame(res)
         df0 = pd.concat([df0, res_df])
+        df0.to_csv("temp.csv")
     return df0
 
 
@@ -271,11 +273,10 @@ def save_results(res, fn):
     print(f"Saving to {fn}")
     res.to_csv(fn)
 
-
 def main():
-    parser = argparse.ArgumentParser(description='Analyze SCNAB')
-    parser.add_argument('-i', type=str, help='input file', default='./Data/SCNAB_groups.csv')
-    parser.add_argument('-o', type=str, help='output file', default='results/SCNAB')
+    parser = argparse.ArgumentParser(description='Analyze SCANB')
+    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups.csv')
+    parser.add_argument('-o', type=str, help='output file', default='SCANB')
     parser.add_argument('-T', type=int, help='number of instances', default=100)
     parser.add_argument('-M', type=int, help='repetitions', default=1)
 
@@ -284,10 +285,15 @@ def main():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--report-results-only', action='store_true')
     parser.add_argument('--analyze', action='store_true')
+    parser.add_argument('--report-null-stats', action='store_true')
     args = parser.parse_args()
     #
 
     T = args.T
+    if args.report_null_stats:
+        df0 = pd.read_csv(args.i)
+        report_null_stats(df0, T)
+
     stbl = args.stbl
     M =args.M
     print("stbl = ", stbl)
