@@ -13,7 +13,7 @@ $python3 illustrate_gene_expression_results.py -null results/SCNAB_null_False_T1
 
 SELECTED_GENES = ['SIGMAR1', 'ST6GALANC5', 'DCK', 'ADSS', 'KCTD9',
                       'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
-                       'FBXL12', 'PDE6D', 'BTNL8']
+                       'FBXL12', 'PDE6D', 'BTNL8', 'TRPS1']
 
 import argparse
 import logging
@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
 mpl.style.use('ggplot')
+from multitest import MultiTest
 
 
 

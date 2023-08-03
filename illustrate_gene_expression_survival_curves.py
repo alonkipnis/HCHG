@@ -53,14 +53,15 @@ def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.5):
     return pvals <= hct
 
 
-def illustrate_survival_curve(df, gene_name, T, stbl=False):
+def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
+                               show_HCT=True, randomize_HC=False):
     dfg = reduce_time_resolution(two_groups_gene(df, gene_name), T)
 
     Nt1, Nt2 = dfg['at-risk1'].values, dfg['at-risk2'].values
     Ot1, Ot2 = dfg['dead1'].values, dfg['dead2'].values
 
-    stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=False)
-    stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=False)
+    stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=randomize_HC)
+    stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=randomize_HC)
     if stats['hc_greater'] < stats_rev['hc_greater']:  # reverse groups
         dfg = dfg.rename(columns={'at-risk1': 'at-risk2', 'at-risk2': 'at-risk1',
                                   'dead1': 'dead2', 'dead2': 'dead1',
@@ -75,9 +76,6 @@ def illustrate_survival_curve(df, gene_name, T, stbl=False):
 
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
-    mt = MultiTest(pvals[pvals < 1], stbl=stbl)
-    hc, hct = mt.hc(gamma=.2)
-    # print("HC = ", hc)
     fpval = find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True)
 
     dfg['pvalue'] = pvals
@@ -107,11 +105,12 @@ def illustrate_survival_curve(df, gene_name, T, stbl=False):
 
     plt.legend([r'$\hat{S}_x$', r'$\hat{S}_y$'], fontsize=16, loc=1)
 
-    plt.bar(dfg.index[:len(fpval)], fpval, color='k', alpha=.2, width=.5)
+    if show_HCT:
+        plt.bar(dfg.index[:len(fpval)], fpval, color='k', alpha=.2, width=.5)
 
     plt.title(f"{gene_name}, (HC={np.round(stats['hc_greater'],2)}, HCrev={np.round(stats_rev['hc_greater'],2)} Log-rank={np.round(stats['log_rank_greater'],2)})")
-    plt.ylabel('Survival Proportion', fontsize=16)
-    plt.xlabel(r'$t$ (Time)', fontsize=16)
+    plt.ylabel('proportion', fontsize=16)
+    plt.xlabel(r'$t$ [Time]', fontsize=16)
     plt.ylim([0.7, 1.01])
 
     return df_disp, dfg
@@ -139,7 +138,7 @@ def main():
 
         fig_filename = outdir + gene_name + ".png"
         plt.figure()
-        df_disp, dfp = illustrate_survival_curve(df, gene_name, T, stbl=False)
+        df_disp, dfp = illustrate_survival_curve_gene(df, gene_name, T, stbl=False)
         logging.info(f"Writing survival curve to {fig_filename}.")
         plt.savefig(fig_filename)
 

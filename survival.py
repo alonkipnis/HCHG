@@ -7,11 +7,12 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from multiHGtest import hypergeom_test
 
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
-from scipy.stats import poisson, norm, hypergeom, uniform
+from scipy.stats import norm, hypergeom, uniform
 from phase_transition_experiment.sample_survival_poisson import *
 
 
@@ -67,7 +68,7 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     return z, pval
 
 
-def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
+def __hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
     Exact hypergeometric test
     
@@ -91,18 +92,19 @@ def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
         U = 0
 
     if alternative == 'greater':
-        return hypergeom.sf(k - 1, M, n, N) - U * hypergeom.pmf(k, M, n, N)  # sf is 1-cdf, so Pr(X >= k) = Pr(X>k-1)
+        return hypergeom.sf(k - 1, M, n, N) - U * hypergeom.pmf(k, M, n, N)
+        # sf is 1-cdf, so Pr(X >= k) = Pr(X>k-1)
     if alternative == 'less':
         return hypergeom.cdf(k, M, n, N) - U * hypergeom.pmf(k, M, n, N)
     if alternative == 'two-sided':
         l1 = hypergeom.cdf(k, M, n, N)
-        l2 = hypergeom.cdf(n - k, M, n, N)
+        l2 = hypergeom.cdf(N - k, M, n, N)
 
         r1 = hypergeom.sf(k - 1, M, n, N)
-        r2 = hypergeom.sf(n - k + 1, M, n, N)
+        r2 = hypergeom.sf(N - k + 1, M, n, N)
 
-        l = np.minimum(l1, l2) - U * ((l1 < l2) * hypergeom.pmf(k, M, n, N) + (l1 > l2) * hypergeom.pmf(n - k, M, n, N))
-        r = np.minimum(r1, r2) - U * ((r1 < r2) * hypergeom.pmf(k, M, n, N) + (r1 > r2) * hypergeom.pmf(n - k, M, n, N))
+        l = np.minimum(l1, l2) - U * ((l1 < l2) * hypergeom.pmf(k, M, n, N) + (l1 > l2) * hypergeom.pmf(N - k, M, n, N))
+        r = np.minimum(r1, r2) - U * ((r1 < r2) * hypergeom.pmf(k, M, n, N) + (r1 > r2) * hypergeom.pmf(N - k, M, n, N))
         return l + r
 
     raise ValueError("'alternative' must be one of 'grater', 'less', or 'two-sided'")
@@ -185,9 +187,11 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     if alternative == 'both':
         r_greater = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='greater',
-                                         stbl=stbl, randomize=randomize, discard_ones=discard_ones)
+                                         stbl=stbl, randomize=randomize, 
+                                         discard_ones=discard_ones)
         r_less = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='less',
-                                      stbl=stbl, randomize=randomize, discard_ones=discard_ones)
+                                      stbl=stbl, randomize=randomize,
+                                        discard_ones=discard_ones)
 
         return dict([(k + '_greater', r_greater[k]) for k in r_greater.keys()]
                     + [(k + '_less', r_less[k]) for k in r_less.keys()]
@@ -198,7 +202,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
         return dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
-    return test_results
+
 
 
 def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
@@ -227,24 +231,32 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative=alternative)
     test_results['log_rank'] = lr  # large values are significant
     test_results['log_rank_pval'] = lr_pval  # alternative only affecting p-value, not lr score
+    test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
+        Nt1, Nt2, alternative=alternative).pvalue + EPS)
 
+    hcv = []
+    fisherv = []
+    minpv = []
+    bjv = []
+    
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative=alternative,
                         randomize=randomize)
     if discard_ones:
         pvals = pvals[pvals < 1]
     mt = MultiTest(pvals, stbl=stbl)
     # if not using stbl=False, then sometimes
-    # HC cannot detect a single dominnate effect
-    
-    test_results['hc'] = mt.hc()[0]
-    fisher = mt.fisher()
-    test_results['fisher'] = fisher[0]
-    test_results['fisher_pval'] = fisher[1]
-    test_results['min_p'] = mt.minp()
-    test_results['berk_jones'] = mt.berk_jones(gamma=.45)
-    test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-        Nt1, Nt2, alternative=alternative).pvalue + EPS)
+    # HC cannot detect a single dominant effect
 
+    hcv = mt.hc()[0]
+    fisherv = mt.fisher()[0]
+    minpv = mt.minp()
+    bjv = mt.berk_jones(gamma=.45)
+    
+    test_results['hc'] = hcv
+    test_results['fisher'] = fisherv
+    test_results['min_p'] = minpv
+    test_results['berk_jones'] = bjv
+    
     return test_results
 
 
@@ -325,7 +337,7 @@ def main():
     r = 0
     lam0 = 3
 
-    res = evaluate(1, T, N1, N2, lam0, beta, r)
+    res = evaluate_rare_and_weak(1, T, N1, N2, lam0, beta, r)
     print(res)
 
     print('Under alt. parameters')
@@ -333,7 +345,7 @@ def main():
     r = 2
     lam0 = 3
 
-    res = evaluate(1, T, N1, N2, lam0, beta, r)
+    res = evaluate_rare_and_weak(1, T, N1, N2, lam0, beta, r)
     print(res)
 
 

@@ -1,5 +1,3 @@
-from twosample import binom_test
-from multitest import MultiTest
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
@@ -8,14 +6,13 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 from tqdm import tqdm
-from scipy.stats import poisson, binom, norm, hypergeom, uniform, bernoulli
 import pandas as pd
 import argparse
 
 import logging
 
 logging.basicConfig(level=logging.INFO)
-from survival import (hypergeom_test, q95, multi_pvals, evaluate_test_stats)
+from survival import (q95, evaluate_test_stats)
 
 
 def infmean(x):
@@ -25,6 +22,7 @@ def infmean(x):
 
 def std_95(x):
     return scipy.stats.mstats.mjci(x, prob = [0.95])[0]
+
 
 
 def infstd(x):
@@ -56,8 +54,8 @@ def arrange_group(dfg):
 
 def two_groups_gene(data, gene_name):
     """
-    Arranges relevant data in a two groups format
-    for survival analysis based on the examined gene
+    Arranges relevant data in two groups format for survival analysis based on
+    the examined gene
 
     Args:
     :data:   is a dataframe with :gene_name: as one of its columns.
@@ -115,10 +113,12 @@ def reduce_time_resolution(df, T):
         r['at-risk2'] = dft['at-risk2'].max()
         r_df = pd.DataFrame(r).T
         dfc = pd.concat([dfc, r_df])
-    return dfc.fillna(method='backfill').dropna()
+    dfc = dfc.fillna(method='backfill').dropna()
+    dfc['t'] = np.arange(0, T)
+    return dfc.set_index('t')
 
 
-def test_gene(data, gene_name, T, stbl=False):
+def test_gene(data, gene_name, T, stbl=False, randomize=False):
     """
     Evaluate all test statistics for comparing the survival curves
     for the two groups involving the response of :gene_name:
@@ -131,19 +131,22 @@ def test_gene(data, gene_name, T, stbl=False):
     :gene_name:  the name of the column to test
     :T:    is the new maximal time interval. If T == -1 then we
             use the original times
+    :stbl:  type of denumerator in HC statisitc
+    :randomize:  whether to randomize the Hypergeometric tests or not
+    :repetitions:  number of times to randomize the test
 
     """
     if T > 0:
         dfr = reduce_time_resolution(two_groups_gene(data, gene_name), T)
     else:
-        dfr = two_groups_gene(df, gene_name)
+        dfr = two_groups_gene(data, gene_name)
+
     r = evaluate_test_stats(dfr['at-risk1'].values, dfr['at-risk2'].values,
                             dfr['dead1'].values, dfr['dead2'].values,
-                            stbl=stbl, randomize=False, alternative='greater'
-                            )
+                            stbl=stbl, randomize=randomize, alternative='greater')
     rrev = evaluate_test_stats(dfr['at-risk2'].values, dfr['at-risk1'].values,
-                               dfr['dead2'].values, dfr['dead1'].values,
-                               stbl=stbl, randomize=False, alternative='greater')
+                            dfr['dead2'].values, dfr['dead1'].values,
+                            stbl=stbl, randomize=randomize, alternative='greater')
 
     r['name'] = gene_name
     rrev['name'] = gene_name
@@ -151,21 +154,14 @@ def test_gene(data, gene_name, T, stbl=False):
     r['x0'] = dfr['at-risk1'].max()
     r['y0'] = dfr['at-risk2'].max()
     r['lam'] = (dfr['dead1'].sum() + dfr['dead2'].sum()) / (dfr['at-risk1'].sum() + dfr['at-risk2'].sum())
+    
     rdf = pd.DataFrame(r, index=[0])
     revdf = pd.DataFrame(rrev, index=[0])
 
     return rdf.join(revdf, rsuffix='_rev')
 
 
-def std_95(x):
-    """
-    Standard error in estimating the 95 quantile based on the vector of
-    measurements x.
-    """
-    return np.std(x) / np.sqrt(len(x)) * np.sqrt(.95 * (1 - .95))
-
-
-def simulate_null_data(df, T, rep=1, stbl=True):
+def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=10000):
     """
     Generate random partition and Evaluate test statistics. 
 
@@ -176,8 +172,9 @@ def simulate_null_data(df, T, rep=1, stbl=True):
     Args:
         :df:   data in a dataframe format
         :T:    number of time instances to consolidate the data to
-        :rep:  number of random assignments
         :stbl: parameter for type of HC to use
+        :randimize:  whether to randomize P-values
+        :rep:  number of repetitions
 
     Return:
         :df0:  dataframe with test statistics as columns and genes as rows
@@ -196,44 +193,37 @@ def simulate_null_data(df, T, rep=1, stbl=True):
 
     df_test = df[['time', 'event']]
 
-    for _ in tqdm(range(rep)):
+    for itr in tqdm(range(nMonte)):
         logging.debug(f'Sampling a random assignment')
         a = sample_balanced_assignmet(len(df_test))
         df_test = pd.DataFrame({'random_sample': a,
                                 'time': df['time'],
                                 'event': df['event']})
         # df_test.loc[:, 'random_sample'] = a
-        res = test_gene(df_test, 'random_sample', T, stbl=stbl)
+        res = []
+        for _ in range(repetitions):
+            r = test_gene(df_test, 'random_sample', T, stbl=stbl, randomize=randomize)
+            res.append(r)
         res_df = pd.DataFrame(res)
+        res_df['itr'] = itr
         df0 = pd.concat([df0, res_df])
     return df0
 
 
-def main_test_all_genes(df, T=100, stbl=False):
+def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False):
     gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
-
     logging.info("Testing all genes...")
+
+    gene_names = pd.read_csv("genes_detected_by_HC.csv").iloc[:,1].tolist()
+    print(gene_names)
+    print(f"Testing {len(gene_names)} genes...")
 
     res = pd.DataFrame()
     for gene_name in tqdm(gene_names):
-        r = test_gene(df, gene_name, T, stbl=stbl)
-        res = res.append(r, ignore_index=True)
-
+        for _ in range(repetitions):
+            r = test_gene(df, gene_name, T, stbl=stbl, randomize=randomize)
+            res = pd.concat([res, r], axis=0)
     return res
-
-
-def report_null_stats(df0, T, precision=5):
-    dsp = df0.filter(
-        ['log_rank_greater', 'hc_greater', 'x0', 'y0', 'lam']).agg([q95, 'mean', 'std'])
-    dsp.loc['std_95'] = [std_95(df0[c]) for c in dsp]
-
-    print(np.round(dsp, precision))
-
-    if 'lam' in dsp:
-        m = infmean(df0['lam'])
-        s = np.sqrt(infstd(df0['lam']))
-        print("lam * T = ", np.round(m * T, precision))
-        print("SE(lam*T) = ", np.round(s * T, precision))
 
 
 def report_results(df0, res):
@@ -269,21 +259,23 @@ def report_results(df0, res):
 
 def save_results(res, fn):
     print(f"Saving to {fn}")
-    res.to_csv(fn)
+    #import pdb; pdb.set_trace()
+    pd.DataFrame(res).to_csv(fn)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze SCNAB')
     parser.add_argument('-i', type=str, help='input file', default='./Data/SCNAB_groups.csv')
     parser.add_argument('-o', type=str, help='output file', default='results/SCNAB')
-    parser.add_argument('-T', type=int, help='number of instances', default=100)
+    parser.add_argument('-T', type=int, help='number of time intervals', default=100)
     parser.add_argument('-M', type=int, help='repetitions', default=1)
+    
 
-    parser.add_argument('--null', action='store_true')
-    parser.add_argument('--stbl', action='store_true')
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--report-results-only', action='store_true')
-    parser.add_argument('--analyze', action='store_true')
+    parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
+    parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
+    parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
+    parser.add_argument('--report-results-only', action='store_true', 
+                        help='summarize existing results without evalauting new ones')
     args = parser.parse_args()
     #
 
@@ -302,16 +294,17 @@ def main():
 
     if args.null:
         print("Simulating null...")
-        res = simulate_null_data(df, T, rep=args.M, stbl=stbl)
-        fn = f'{args.o}_null_{stbl}_T{T}_M{args.M}.csv'
+        res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize)
+        fn = f'{args.o}_null_{stbl}_T{T}_{args.randomize}_rep{args.M}.csv'
         save_results(res, fn)
-        report_null_stats(res, T)
-
-    elif args.test:
+    elif args.randomize:
+        res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=True)
+        fn = f'{args.o}_{stbl}_T{T}_randomized_rep{args.M}.csv'
+        save_results(res, fn)
+    else:
         res = main_test_all_genes(df, T, stbl)
         fn = f'{args.o}_{stbl}_T{T}.csv'
         save_results(res, fn)
-
 
 
 if __name__ == '__main__':
