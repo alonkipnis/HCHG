@@ -11,6 +11,7 @@ import argparse
 
 import logging
 
+
 logging.basicConfig(level=logging.INFO)
 from survival import (q95, evaluate_test_stats)
 
@@ -207,6 +208,7 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
         res_df = pd.DataFrame(res)
         res_df['itr'] = itr
         df0 = pd.concat([df0, res_df])
+        df0.to_csv("temp.csv")
     return df0
 
 
@@ -262,24 +264,43 @@ def save_results(res, fn):
     #import pdb; pdb.set_trace()
     pd.DataFrame(res).to_csv(fn)
 
-
 def main():
+<<<<<<< HEAD
     parser = argparse.ArgumentParser(description='Analyze SCNAB')
     parser.add_argument('-i', type=str, help='input file', default='./Data/SCNAB_groups.csv')
     parser.add_argument('-o', type=str, help='output file', default='results/SCNAB')
     parser.add_argument('-T', type=int, help='number of time intervals', default=100)
+=======
+    parser = argparse.ArgumentParser(description='Analyze SCANB')
+    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups.csv')
+    parser.add_argument('-o', type=str, help='output file', default='SCANB')
+    parser.add_argument('-T', type=int, help='number of instances', default=100)
+>>>>>>> a6caf9261ff1015e21e1a586cce94db1653782fe
     parser.add_argument('-M', type=int, help='repetitions', default=1)
     
 
+<<<<<<< HEAD
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
     parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
     parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
     parser.add_argument('--report-results-only', action='store_true', 
                         help='summarize existing results without evalauting new ones')
+=======
+    parser.add_argument('--null', action='store_true')
+    parser.add_argument('--stbl', action='store_true')
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--report-results-only', action='store_true')
+    parser.add_argument('--analyze', action='store_true')
+    parser.add_argument('--report-null-stats', action='store_true')
+>>>>>>> a6caf9261ff1015e21e1a586cce94db1653782fe
     args = parser.parse_args()
     #
 
     T = args.T
+    if args.report_null_stats:
+        df0 = pd.read_csv(args.i)
+        report_null_stats(df0, T)
+
     stbl = args.stbl
     M =args.M
     print("stbl = ", stbl)
