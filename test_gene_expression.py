@@ -201,11 +201,10 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
                                 'time': df['time'],
                                 'event': df['event']})
         # df_test.loc[:, 'random_sample'] = a
-        res = []
+        res_df = pd.DataFrame()
         for _ in range(repetitions):
             r = test_gene(df_test, 'random_sample', T, stbl=stbl, randomize=randomize)
-            res.append(r)
-        res_df = pd.DataFrame(res)
+            res_df = pd.concat([res_df, r], axis=0)
         res_df['itr'] = itr
         df0 = pd.concat([df0, res_df])
         df0.to_csv("temp.csv")
@@ -217,6 +216,7 @@ def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False):
     logging.info("Testing all genes...")
 
     gene_names = pd.read_csv("genes_detected_by_HC.csv").iloc[:,1].tolist()
+
     print(gene_names)
     print(f"Testing {len(gene_names)} genes...")
 
@@ -265,34 +265,19 @@ def save_results(res, fn):
     pd.DataFrame(res).to_csv(fn)
 
 def main():
-<<<<<<< HEAD
-    parser = argparse.ArgumentParser(description='Analyze SCNAB')
-    parser.add_argument('-i', type=str, help='input file', default='./Data/SCNAB_groups.csv')
-    parser.add_argument('-o', type=str, help='output file', default='results/SCNAB')
-    parser.add_argument('-T', type=int, help='number of time intervals', default=100)
-=======
     parser = argparse.ArgumentParser(description='Analyze SCANB')
     parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups.csv')
     parser.add_argument('-o', type=str, help='output file', default='SCANB')
     parser.add_argument('-T', type=int, help='number of instances', default=100)
->>>>>>> a6caf9261ff1015e21e1a586cce94db1653782fe
     parser.add_argument('-M', type=int, help='repetitions', default=1)
     
 
-<<<<<<< HEAD
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
     parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
     parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
-    parser.add_argument('--report-results-only', action='store_true', 
-                        help='summarize existing results without evalauting new ones')
-=======
-    parser.add_argument('--null', action='store_true')
-    parser.add_argument('--stbl', action='store_true')
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--report-results-only', action='store_true')
     parser.add_argument('--analyze', action='store_true')
     parser.add_argument('--report-null-stats', action='store_true')
->>>>>>> a6caf9261ff1015e21e1a586cce94db1653782fe
     args = parser.parse_args()
     #
 
@@ -305,14 +290,9 @@ def main():
     M =args.M
     print("stbl = ", stbl)
 
-    if not args.report_results_only:
-        print(f"Reading data from {args.i}...")
-        df = pd.read_csv(args.i)
-    else:
-        res = pd.read_csv(f'{args.o}_{stbl}_T{T}.csv')
-        df0 = pd.read_csv(f'{args.o}_null_{stbl}_T{T}_M{M}.csv')
-        report_results(df0, res)
-
+    print(f"Reading data from {args.i}...")
+    df = pd.read_csv(args.i)
+    
     if args.null:
         print("Simulating null...")
         res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize)

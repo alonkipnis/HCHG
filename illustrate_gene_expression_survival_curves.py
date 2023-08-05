@@ -14,6 +14,9 @@ $python3 illustrate_gene_expression_survival_curves.py -data Data/SCANB_groups_v
 
 """
 
+SELECTED_GENES = ['SIGMAR1', 'ST6GALNAC5', 'DCK', 'ADSS', 'KCTD9', 'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
+                'FBXL12', 'PDE6D', 'BTNL8']
+
 import argparse
 import logging
 import numpy as np
@@ -120,6 +123,8 @@ def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-data', type=str, help='SCANB gene expression data file',
                         default="data/SCANB_groups_valid.csv")
+    parser.add_argument('-T', type=int, help='number of intervals')
+    parser.add_argument('-gene-names', type=list, help='list of gene names')
     parser.add_argument('-outdir', type=str, help='output directory for images',
                         default="./")
 
@@ -130,11 +135,10 @@ def main():
     logging.info(f"Reading data from {args.data}...")
     df = load_data(args.data)
 
-    SELECTED_GENES = ['SIGMAR1', 'ST6GALNAC5', 'DCK', 'ADSS', 'KCTD9', 'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
-                'FBXL12', 'PDE6D', 'BTNL8']
+    lo_genes = args.gene_names
+    T = args.T
 
-    T = 100
-    for gene_name in SELECTED_GENES:
+    for gene_name in lo_genes:
 
         fig_filename = outdir + gene_name + ".png"
         plt.figure()
