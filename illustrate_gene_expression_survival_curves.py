@@ -57,7 +57,8 @@ def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.5):
 
 
 def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
-                               show_HCT=True, randomize_HC=False):
+                               show_HCT=True, randomize_HC=False,
+                               show_stats_in_title=True):
     dfg = reduce_time_resolution(two_groups_gene(df, gene_name), T)
 
     Nt1, Nt2 = dfg['at-risk1'].values, dfg['at-risk2'].values
@@ -111,7 +112,10 @@ def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
     if show_HCT:
         plt.bar(dfg.index[:len(fpval)], fpval, color='k', alpha=.2, width=.5)
 
-    plt.title(f"{gene_name}, (HC={np.round(stats['hc_greater'],2)}, HCrev={np.round(stats_rev['hc_greater'],2)} Log-rank={np.round(stats['log_rank_greater'],2)})")
+
+    if show_stats_in_title:
+        stats_str = f": HC={np.round(stats['hc_greater'],2)}, HCrev={np.round(stats_rev['hc_greater'],2)}, Log-rank={np.round(stats['log_rank_greater'],2)}"
+    plt.title(f"{gene_name}" + stats_str)
     plt.ylabel('proportion', fontsize=16)
     plt.xlabel(r'$t$ [Time]', fontsize=16)
     plt.ylim([0.7, 1.01])
@@ -122,9 +126,10 @@ def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
 def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-data', type=str, help='SCANB gene expression data file',
-                        default="data/SCANB_groups_valid.csv")
+                        default="Data/SCANB_groups_valid.csv")
     parser.add_argument('-T', type=int, help='number of intervals')
-    parser.add_argument('-gene-names', type=list, help='list of gene names')
+    parser.add_argument('-gene-names', nargs="*",
+                         type=str, help='list of gene names')
     parser.add_argument('-outdir', type=str, help='output directory for images',
                         default="./")
 
@@ -142,9 +147,10 @@ def main():
 
         fig_filename = outdir + gene_name + ".png"
         plt.figure()
-        df_disp, dfp = illustrate_survival_curve_gene(df, gene_name, T, stbl=False)
+        df_disp, dfp = illustrate_survival_curve_gene(df, gene_name, T, stbl=True)
         logging.info(f"Writing survival curve to {fig_filename}.")
         plt.savefig(fig_filename)
+        plt.show()
 
         dfd = df_disp.copy()
         dfd = dfd.iloc[:, :-2]

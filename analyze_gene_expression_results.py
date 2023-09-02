@@ -14,6 +14,8 @@ $python3 illustrate_gene_expression_results.py -null results/SCNAB_null_False_T1
 SELECTED_GENES = ['SIGMAR1', 'ST6GALANC5', 'DCK', 'ADSS', 'KCTD9',
                       'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
                        'FBXL12', 'PDE6D', 'BTNL8', 'TRPS1']
+SELECTED_GENES = ['DCK', 'EIF2B4', 'ADSS', 'OSGEP', 'TMCO1', 'USP21', 'NINL', 'SCAP',
+        'INTS3', 'SSR3', 'AGT']
 
 import argparse
 import logging
@@ -26,14 +28,58 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
 mpl.style.use('ggplot')
 from multitest import MultiTest
-
+from tqdm import tqdm
+from illustrate_gene_expression_survival_curves import illustrate_survival_curve_gene
 
 
 def empirical_pval(x, stat_name, df0):
     return np.minimum((np.sum(df0[stat_name].values >= x) ) / len(df0), 1)
 
 
-def report_results(res:pd.DataFrame, crit_vals:pd.DataFrame):
+def find_pvalues_of_stats_results(df1, df0, stat_name):
+    val0 =df0[stat_name]
+    def stat0(x):
+        return np.mean(val0 > x)
+
+    return df1[stat_name].apply(stat0)
+
+
+
+def report_results(res:pd.DataFrame, sig_level=0.05):
+    log_rank_non = (res['log_rank_greater_pvalue'] > sig_level) & (res['log_rank_greater_rev_pvalue'] > sig_level)
+    log_rank_1side_strict = (res['log_rank_greater_pvalue'] <= sig_level) & (res['log_rank_greater_rev_pvalue'] > sig_level)
+    log_rank_1side_strict_rev = (res['log_rank_greater_pvalue'] > sig_level) & (res['log_rank_greater_rev_pvalue'] <= sig_level)
+    log_rank_2side = (res['log_rank_greater_pvalue'] <= sig_level) | (res['log_rank_greater_rev_pvalue'] <= sig_level)
+
+    log_rank_strict = log_rank_1side_strict | log_rank_1side_strict_rev
+
+    hc_non = (res['hc_greater_pvalue'] > sig_level) & (res['hc_greater_rev_pvalue'] > sig_level)
+    hc_1side_strict = (res['hc_greater_pvalue'] <= sig_level) & (res['hc_greater_rev_pvalue'] > sig_level)
+    hc_1side_strict_rev = (res['hc_greater_pvalue'] > sig_level) & (res['hc_greater_rev_pvalue'] <= sig_level)
+    hc_2side = (res['hc_greater_pvalue'] <= sig_level) | (res['hc_greater_rev_pvalue'] <= sig_level)
+
+    hc_strict = hc_1side_strict | hc_1side_strict_rev
+
+    print("Strictly one-sided effect:")
+    print("\tDiscoverable by HC: ", np.sum(hc_strict))
+    print("\tDiscoverable by LR: ", np.sum(log_rank_strict))
+    print("\tDiscoverable by HC and LR: ", np.sum(hc_strict & log_rank_strict))
+    print("\tDiscoverable by HC but not LR: ", np.sum(hc_strict & (1 - log_rank_strict) )   )
+    print("\tDiscoverable by LR but not HC: ", np.sum((1 - hc_strict) & ( log_rank_strict) )   )
+    print("\tDiscoverable by neigher HC nor LR: ", np.sum((1 - hc_strict) & (1 - log_rank_strict) )   )
+
+
+    print(" Either side effect:")
+    print("\tDiscoverable by HC: ", np.sum(hc_2side))
+    print("\tDiscoverable by LR: ", np.sum(log_rank_2side))
+    print("\tDiscoverable by HC and LR: ", np.sum(hc_2side & log_rank_2side))
+    print("\tDiscoverable by HC but not LR: ", np.sum(hc_2side & (1 - log_rank_2side) )   )
+    print("\tDiscoverable by LR but not HC: ", np.sum((1 - hc_2side) & ( log_rank_2side) )   )
+    print("\tDiscoverable by neigher HC nor LR: ", np.sum((1 - hc_2side) & (1 - log_rank_2side) )   )
+
+
+
+def report_results_critvals(res:pd.DataFrame, HC_critval, logrank_critval):
     """
     Print number of discoveries by each test and report
 
@@ -46,8 +92,8 @@ def report_results(res:pd.DataFrame, crit_vals:pd.DataFrame):
 
     """
 
-    LRt = crit_vals['log_rank_greater'].values[0]
-    HCt = crit_vals['hc_greater'].values[0]
+    LRt = logrank_critval
+    HCt = HC_critval
 
     log_rank_1side_strict = (res.log_rank_greater > LRt) & (res.log_rank_greater_rev < LRt)
     log_rank_1side_strict_rev = (res.log_rank_greater < LRt) & (res.log_rank_greater_rev > LRt)
@@ -101,6 +147,14 @@ def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.5):
     return pvals <= hct
 
 
+def find_pvalues_of_stats_results(df1, df0, stat_name):
+    val0 =df0[stat_name]
+    def stat0(x):
+        return np.mean(val0 > x)
+
+    return df1[stat_name].apply(stat0)
+
+
 def prepare_for_display(resi_disp):
     flip_idc = resi_disp['hc_greater'] < resi_disp['hc_greater_rev']
     resi_disp['flip'] = '$>$ med'
@@ -109,13 +163,23 @@ def prepare_for_display(resi_disp):
     resi_disp['log_rank'] = np.maximum(resi_disp['log_rank_greater'], resi_disp['log_rank_greater_rev'])
     rr = resi_disp.reset_index().filter(['name', 'hc', 'hc_pval', 'log_rank', 'log_rank_pval', 'flip'])
 
-    return rr[rr['log_rank'] > 0.05]
+    return rr
+
+
+def qnt(x, q):
+    """
+    The q-th percentile of the vector x
+    """
+    if x.dtypes.kind == 'O':
+        return np.nan
+    else:
+        return pd.Series.quantile(x, q)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
-    parser.add_argument('-null', type=str, help='null data', default="results/SCNAB_null_False_T100_M1.csv")
-    parser.add_argument('-results', type=str, help='results', default="results/SCNAB_greater_False_T100.csv")
+    parser.add_argument('-null', type=str, help='null data', default="results/SCANB_null_False_T100_M1.csv")
+    parser.add_argument('-results', type=str, help='results', default="results/SCANB_greater_False_T100.csv")
     parser.add_argument('-o', type=str, help='output table', default="table.csv")
     args = parser.parse_args()
     #
@@ -128,21 +192,27 @@ def main():
     logging.info(f"Reading null simulation results from {args.null}...")
     df0 = pd.read_csv(args.null).filter(regex='^((?!Unnamed).)*$')
     
-    crit_vals = df0.agg([q95]).filter(
+    sig_level = 0.01
+    crit_vals = df0.agg([lambda x : qnt(x, 1 - sig_level) ]).filter(
         ['log_rank_greater', 
          'hc_greater', 
          'hc_greater_rev', 
          'log_rank_greater_rev'])
-    logging.info(f"Computed the following critical test values:")
+    logging.info(f"Computed the following critical test values at significance level {sig_level}:")
     logging.info(crit_vals)
     
-    report_results(res, crit_vals)
+    
+    for stat_name in ['hc_greater', 'log_rank_greater', 'hc_greater_rev', 'log_rank_greater_rev']:
+        res.loc[:, stat_name + '_pvalue'] = find_pvalues_of_stats_results(res, df0, stat_name)
+        
+    report_results(res, sig_level=sig_level)
 
     resi = arrange_results_for_presentation(df0, res)
     resi_disp = resi[resi.name.isin(SELECTED_GENES)]
     df_disp = prepare_for_display(resi_disp).set_index('name')
     print(df_disp)
     df_disp.to_csv(args.o)
+    logging.info(f"Saved table in {args.o}")
 
 
 if __name__ == '__main__':

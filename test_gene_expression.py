@@ -213,12 +213,10 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
 
 def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False):
     gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
-    logging.info("Testing all genes...")
 
-    gene_names = pd.read_csv("genes_detected_by_HC.csv").iloc[:,1].tolist()
+    #gene_names = pd.read_csv("genes_detected_by_HC.csv").iloc[:,1].tolist()
 
-    print(gene_names)
-    print(f"Testing {len(gene_names)} genes...")
+    logging.info(f"Testing {len(gene_names)} genes...")
 
     res = pd.DataFrame()
     for gene_name in tqdm(gene_names):
@@ -296,7 +294,9 @@ def main():
     if args.null:
         print("Simulating null...")
         res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize)
-        fn = f'{args.o}_null_{stbl}_T{T}_{args.randomize}_rep{args.M}.csv'
+        rand_str = "_randomized" if args.randomize else ""
+        stbl_str = "stable" if stbl else "not_stble"
+        fn = f'{args.o}_null_{stbl}_T{T}{rand_str}_rep{args.M}.csv'
         save_results(res, fn)
     elif args.randomize:
         res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=True)
