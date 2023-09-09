@@ -270,7 +270,8 @@ def simulate_null(T, N1, N2, lam0, nMonte, alternative='greater'):
         Nt1, Nt2 = sample_survival_poisson(T, N1, N2, lam0, 0, 0)
         Ot1 = -np.diff(Nt1)
         Ot2 = -np.diff(Nt2)
-        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2, stbl=STBL, alternative=alternative)
+        res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
+                                  stbl=STBL, alternative=alternative)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:

@@ -18,53 +18,7 @@ from sample_survival_poisson import sample_survival_poisson as sample_survival_d
 import sys
 sys.path.append("../")
 from survival import evaluate_test_stats
-#from lifelines.statistics import logrank_test
 
-
-def _log_rank_test(Nt1, Nt2, alternative='two-sided'):
-    """
-    log-rank test 
-    We assume that len(Nt1) == len(Nt2), and that each
-    entry in either list represents an event in which
-    a change occurs in the number of items in each groups 
-    (the change in each group may also be zero)
-    
-    Args:
-    -----
-    :Nt1:   vector of counts in group 1 (each count corresponds to an event)
-    :Nt2:   vector of counts in group 2 
-    :alternative:   options are: 'greater', 'less', or 'two-sided'
-                    with 'greater', test against the alternative that
-                    more events occured in Nt2 compared to Nt1
-    Returns:
-    -------
-    :z:       z score of the log-rank test
-    :pvalue:  P-value
-    """
-
-    assert (len(Nt1) == len(Nt2))
-    T = len(Nt1) - 1
-
-    Ot1 = -np.diff(Nt1)
-    Ot2 = -np.diff(Nt2)
-
-    Nt = Nt2 + Nt1
-    e0 = Nt2[:-1] * (Ot1 + Ot2) / Nt[:-1]
-    var0 = e0 * ((Nt[:-1] - (Ot1 + Ot2)) / Nt[:-1]) * (Nt1[:-1] / (Nt[:-1] - 1))
-
-    z = np.sum(Ot2 - e0) / np.sqrt(np.sum(var0))
-
-    if alternative == 'greater':
-        pval = norm.sf(z)
-    elif alternative == 'less':
-        pval = norm.cdf(z)
-    else:
-        pval = 2 * norm.cdf(-np.abs(z))
-
-    return z, pval
-
-def log_rank_test(Nt1, Nt2, alternative='two-sided'):
-    return _log_rank_test(Nt1, Nt2, alternative=alternative)
 
 def hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
     """
@@ -231,6 +185,8 @@ def run_many_experiments(T, N1, N2):
                 res['eps'] = eps
                 res['beta'] = beta
                 res['itr'] = itr
+                res['N1'] = N1
+                res['N2'] = N2
                 df1 = df1.append(res, ignore_index=True)
     return df1
 
