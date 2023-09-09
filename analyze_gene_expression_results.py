@@ -11,11 +11,29 @@ $python3 illustrate_gene_expression_results.py -null results/SCNAB_null_False_T1
 
 """
 
-SELECTED_GENES = ['SIGMAR1', 'ST6GALANC5', 'DCK', 'ADSS', 'KCTD9',
-                      'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
-                       'FBXL12', 'PDE6D', 'BTNL8', 'TRPS1']
-SELECTED_GENES = ['DCK', 'EIF2B4', 'ADSS', 'OSGEP', 'TMCO1', 'USP21', 'NINL', 'SCAP',
-        'INTS3', 'SSR3', 'AGT']
+
+SELECTED_GENES = ['EDEM3',
+ 'CLCF1',
+ 'RARRES1',
+ 'EPB41L4B',
+ 'PMS2',
+ 'DHX32',
+ 'ZNF384',
+ 'TRPS1',
+ 'GDF3',
+ 'NSF']
+SELECTED_GENES = ['PBX1',
+ 'CLCF1',
+ 'MGAT4A',
+ 'SLC5A12',
+ 'DDX5',
+ 'MRAS',
+ 'IFNAR2',
+ 'RARRES1',
+ 'LDHB',
+ 'TLX2']
+
+
 
 import argparse
 import logging
@@ -140,10 +158,10 @@ def arrange_results_for_presentation(df0, res):
     return res
 
 
-def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.5):
+def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.4):
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     mt = MultiTest(pvals[pvals <= 1], stbl=stbl)
-    hc, hct = mt.hc(gamma=gamma)
+    _, hct = mt.hc(gamma=gamma)
     return pvals <= hct
 
 
@@ -178,11 +196,14 @@ def qnt(x, q):
 
 def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
-    parser.add_argument('-null', type=str, help='null data', default="results/SCANB_null_False_T100_M1.csv")
-    parser.add_argument('-results', type=str, help='results', default="results/SCANB_greater_False_T100.csv")
+    parser.add_argument('-null', type=str, help='null data file (csv)')
+    parser.add_argument('-results', type=str, help='results file (csv)')
     parser.add_argument('-o', type=str, help='output table', default="table.csv")
     args = parser.parse_args()
     #
+
+    assert args.null is not None, "Please proivde null data file."
+    assert args.results is not None, "Please proivde results data file."
 
     logging.info(f"Reading from {args.results}...")
     res = pd.read_csv(args.results)
@@ -192,7 +213,7 @@ def main():
     logging.info(f"Reading null simulation results from {args.null}...")
     df0 = pd.read_csv(args.null).filter(regex='^((?!Unnamed).)*$')
     
-    sig_level = 0.01
+    sig_level = 0.05
     crit_vals = df0.agg([lambda x : qnt(x, 1 - sig_level) ]).filter(
         ['log_rank_greater', 
          'hc_greater', 
@@ -213,7 +234,6 @@ def main():
     print(df_disp)
     df_disp.to_csv(args.o)
     logging.info(f"Saved table in {args.o}")
-
 
 if __name__ == '__main__':
     main()

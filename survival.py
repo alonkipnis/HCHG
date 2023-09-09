@@ -1,28 +1,22 @@
 import pandas as pd
 import scipy
 
-from twosample import binom_test
 from multitest import MultiTest
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from multiHGtest import hypergeom_test
+from scipy.stats import norm
 
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 
-from scipy.stats import norm, hypergeom, uniform
 from phase_transition_experiment.sample_survival_poisson import *
+from lifelines.statistics import logrank_test
 
 
-# from lifelines.statistics import logrank_test as logrank_lifeline
-# def log_rank_test_lifeline(Nt1, Nt2):
-#     lr = logrank_lifeline(Nt1, Nt2).summary
-#     return lr['test_statistic'][0], lr['p'][0]
-
-
-STBL = False
+STBL = True
 EPS = 1e-20
 
 
@@ -50,6 +44,12 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     assert (len(Nt1) == len(Nt2))
     assert (len(Ot1) == len(Ot2))
     assert (len(Ot1) == len(Nt1))
+    valid_idcs = (Nt1 != 0) & (Nt2 != 0)
+
+    Nt1 = Nt1[valid_idcs]
+    Nt2 = Nt2[valid_idcs]
+    Ot1 = Ot1[valid_idcs]
+    Ot2 = Ot2[valid_idcs]
 
     Nt = Nt2 + Nt1
     e0 = Nt2 * (Ot1 + Ot2) / Nt
@@ -64,50 +64,8 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     else:
         pval = 2 * norm.cdf(-np.abs(z))
 
-    # alternative only affect pval, not z score
+    # alternative only affecting pval, not z score
     return z, pval
-
-
-def __hypergeom_test(k, M, n, N, alternative='greater', randomize=False):
-    """
-    Exact hypergeometric test
-    
-    Args:
-    -----
-    :k:    number of observed Type I objects
-    :M:    total number of object
-    :n:    total number of Type I objects
-    :N:    number of draws
-    :randomize:   whether to do a randomized test
-    :alternative: type of alternative to consider. Options are: 
-                  'greater', 'less', 'two-sided'
-    
-    Returns:
-        Test's P-value
-    """
-
-    if randomize:
-        U = uniform.rvs(size=len(k))
-    else:
-        U = 0
-
-    if alternative == 'greater':
-        return hypergeom.sf(k - 1, M, n, N) - U * hypergeom.pmf(k, M, n, N)
-        # sf is 1-cdf, so Pr(X >= k) = Pr(X>k-1)
-    if alternative == 'less':
-        return hypergeom.cdf(k, M, n, N) - U * hypergeom.pmf(k, M, n, N)
-    if alternative == 'two-sided':
-        l1 = hypergeom.cdf(k, M, n, N)
-        l2 = hypergeom.cdf(N - k, M, n, N)
-
-        r1 = hypergeom.sf(k - 1, M, n, N)
-        r2 = hypergeom.sf(N - k + 1, M, n, N)
-
-        l = np.minimum(l1, l2) - U * ((l1 < l2) * hypergeom.pmf(k, M, n, N) + (l1 > l2) * hypergeom.pmf(N - k, M, n, N))
-        r = np.minimum(r1, r2) - U * ((r1 < r2) * hypergeom.pmf(k, M, n, N) + (r1 > r2) * hypergeom.pmf(N - k, M, n, N))
-        return l + r
-
-    raise ValueError("'alternative' must be one of 'grater', 'less', or 'two-sided'")
 
 
 def q95(x):
@@ -120,8 +78,35 @@ def q95(x):
         return pd.Series.quantile(x, .95)
 
 
-def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
-                randomize=False, alternative='greater'):
+def logrank_lifeline_survival_table(df_table, **kwrgs):
+    """
+    Apply the logrank test from lifeline to survival table.
+    To to so, we first need to convert the table to time-to-event representation
+    by duplicating entries of removed subjects (observed or censored)
+    """
+
+    def table2time(df):
+        df_obs = df.loc[df.index.repeat(df['observed'])]
+        df_cen = df.loc[df.index.repeat(df['censored'])]
+
+        df_obs['event'] = (df_obs['observed'] > 0) + 0.0
+        df_cen['event'] = 0
+
+        return pd.concat([df_obs, df_cen], axis=0).filter(['event'])
+
+    dfg0 = df_table.filter(like=r':0')
+    dfg1 = df_table.filter(like=r':1')
+
+    dft0 = table2time(dfg0.rename(columns={'observed:0': 'observed', 'censored:0': 'censored'}))
+    dft1 = table2time(dfg1.rename(columns={'observed:1': 'observed', 'censored:1': 'censored'}))
+
+    return logrank_test(dft0.index, dft1.index,
+                        event_observed_A=dft0['event'], event_observed_B=dft1['event'],
+                        **kwrgs)
+
+
+
+def multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False, alternative='greater'):
     """
     Compute P-values from the pair list of coutns in the two groups.
     We have one p-value per event time.
@@ -131,8 +116,6 @@ def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
     -----
     :Nt1:   vector of counts in group 1 (each count corresponds to an event)
     :Nt2:   vector of counts in group 2
-    :test:  is the type of test to apply (options are: 'hypergeom' or
-     'binomial')
     :randomize:  randomized individual tests or not
     :alternative:   type of alternative to use in each test
 
@@ -146,16 +129,11 @@ def multi_pvals(Nt1, Nt2, Ot1, Ot2, test='hypergeom',
 
     Nt = Nt2 + Nt1
 
-    if test == 'binomial':
-        n = Ot1 + Ot2
-        p = Nt2 / Nt
-        x = Ot2
-        pvals = binom_test(x, n, p, randomize=randomize, alt=alternative)
-    elif test == 'hypergeom':
-        pvals = hypergeom_test(Ot2, Nt, Nt2, Ot1 + Ot2,
-                               randomize=randomize, alternative=alternative)
+    pvals = hypergeom_test(Ot2, Nt, Nt2, Ot1 + Ot2,
+                            randomize=randomize, alternative=alternative)
 
     return pvals
+
 
 
 def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
@@ -163,8 +141,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     Evaluate many tests for comparing the lists Nt1 and Nt2
 
     Args:
-    :Nt1: first list of at-risk subjects
-    :Nt2: second list of at-risk subjects
+    :Nt1: first list of at_risk subjects
+    :Nt2: second list of at_risk subjects
     :Ot1: number of events in group 1
     :Ot2: number of events in group 2
 
@@ -175,15 +153,13 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     Fisher combination test
     minimum P-value
     Berk-Jones
-    Wilcoxon ranksum
     """
 
     randomize = kwargs.get('randomize', False)
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
-    stbl = kwargs.get('stbl', False)
+    stbl = kwargs.get('stbl', True)
     discard_ones = kwargs.get('discard_ones', True)  # ignore P-values that are one
 
-    # test_results['log_rank_lifeline'] = -np.log(lrln_pval + EPS)
 
     if alternative == 'both':
         r_greater = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='greater',
@@ -193,15 +169,26 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
                                       stbl=stbl, randomize=randomize,
                                         discard_ones=discard_ones)
 
-        return dict([(k + '_greater', r_greater[k]) for k in r_greater.keys()]
+        res = dict([(k + '_greater', r_greater[k]) for k in r_greater.keys()]
                     + [(k + '_less', r_less[k]) for k in r_less.keys()]
                     )
     else:
         r = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative=alternative,
                                  stbl=stbl, randomize=randomize, discard_ones=discard_ones)
+        res = dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
-        return dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
+    Nt1 = np.concatenate([Nt1, [Nt1[-1]-Ot1[-1]]], axis=0)
+    Nt2 = np.concatenate([Nt2, [Nt1[-1]-Ot2[-1]]], axis=0)
+    Ct1 = np.maximum(-np.diff(Nt1) - Ot1, 0)
+    Ct2 = np.maximum(-np.diff(Nt2) - Ot2, 0)
+
+    dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington']
+    for wt in weightings:
+        res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt, p=1, q=0).test_statistic
+
+    return res
 
 
 
@@ -212,8 +199,8 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     Evaluate many tests for comparing the lists Nt1 and Nt2
 
     Args:
-    :Nt1: first list of at-risk subjects
-    :Nt2: second list of at-risk subjects
+    :Nt1: first list of at_risk subjects
+    :Nt2: second list of at_risk subjects
     :Ot1: number of events in group 1
     :Ot2: number of events in group 2
 
@@ -224,15 +211,12 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     Fisher combination test
     minimum P-value
     Berk-Jones
-    Wilcoxon ranksum
     """
 
     test_results = {}
     lr, lr_pval = log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative=alternative)
     test_results['log_rank'] = lr  # large values are significant
     test_results['log_rank_pval'] = lr_pval  # alternative only affecting p-value, not lr score
-    test_results['wilcoxon'] = -np.log(scipy.stats.ranksums(
-        Nt1, Nt2, alternative=alternative).pvalue + EPS)
 
     hcv = []
     fisherv = []
@@ -258,6 +242,15 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     test_results['berk_jones'] = bjv
     
     return test_results
+
+
+def evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2):
+    res = {}
+    dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington']
+    for wt in weightings:
+        res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt, p=0, q=0).test_statistic
+    return res
 
 
 def simulate_null(T, N1, N2, lam0, nMonte, alternative='greater'):

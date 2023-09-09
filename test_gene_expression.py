@@ -3,6 +3,8 @@ import scipy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
+from lifelines.utils import survival_table_from_events, group_survival_table_from_events
+
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 from tqdm import tqdm
@@ -25,101 +27,43 @@ def std_95(x):
     return scipy.stats.mstats.mjci(x, prob = [0.95])[0]
 
 
-
 def infstd(x):
     return np.std(np.ma.masked_invalid(x))
 
 
-def arrange_group(dfg):
+def two_groups_table(data, group_indicator_name):
     """
-    Group events in time; Find group size in each
-    time sample
-    """
-
-    dft = dfg  # .groupby('time').sum()
-    dft = dft.sort_values('time').reset_index()
-    dft['total'] = len(dft)
-    dft['dead'] = dft.event
-    dft['cum_dead'] = dft.dead.cumsum()
-
-    # dft['censored'] = (~dft.event).cumsum()
-    # incorporate censorship. Change to 'at-risk'
-    dft['cum_censored'] = (dft.event == 0).cumsum()
-    dft['censored'] = (dft.event == 0) + 0.0
-    dft['at-risk'] = dft['total']
-    dft.loc[1:, 'at-risk'] = dft['total'].max() - dft[:-1]['cum_dead'].values - dft['cum_censored'].values[1:]
-    dft = dft.groupby('time').max()
-    assert (np.all(-np.diff(dft['at-risk']) >= dft['dead'].values[:-1]))
-    return dft
-
-
-def two_groups_gene(data, gene_name):
-    """
-    Arranges relevant data in two groups format for survival analysis based on
-    the examined gene
+    Create two-groups survival table from events
 
     Args:
-    :data:   is a dataframe with :gene_name: as one of its columns.
-             additional columns are :time: and :event:
-
-    Return:
-        dataframe indexed by time and number of survived elements in
-        each group
-
+        data is a dataframe with columns: 'time', 'event', <group_indicator_name>
     """
-
-    dfg = data[[gene_name, 'time', 'event']]
-    idc_split = dfg[gene_name] >= 1
-    df1 = arrange_group(dfg[idc_split])
-    df2 = arrange_group(dfg[~idc_split])
-
-    dfm = df1[['at-risk', 'dead', 'censored', 'total']].join(df2[['at-risk', 'dead', 'censored', 'total']], lsuffix='1',
-                                                             rsuffix='2', how='outer')
-    dfm['dead1'] = dfm['dead1'].fillna(0)
-    dfm['dead2'] = dfm['dead2'].fillna(0)
-    dfm['censored1'] = dfm['censored1'].fillna(0)
-    dfm['censored2'] = dfm['censored2'].fillna(0)
-    dfm['total1'] = dfm['total1'].fillna(method='bfill').fillna(method='ffill')
-    dfm['total2'] = dfm['total2'].fillna(method='bfill').fillna(method='ffill')
-
-    dfm['at-risk1'] = dfm['total1']
-    dfm['at-risk2'] = dfm['total2']
-    dfm.loc[dfm.index[1:], 'at-risk1'] = dfm['total1'].values[0] \
-                                         - dfm['dead1'].cumsum().values[:-1] - dfm['censored1'].cumsum().values[:-1]
-    dfm.loc[dfm.index[1:], 'at-risk2'] = dfm['total2'].values[0] \
-                                         - dfm['dead2'].cumsum().values[:-1] - dfm['censored2'].cumsum().values[:-1]
-
-    return dfm
+    
+    r = group_survival_table_from_events(groups=data[group_indicator_name], durations=data['time'], event_observed=data['event'])
+    dfg = pd.concat(r[1:], axis=1)
+    dfg['at_risk:0'] = dfg['removed:0'].cumsum().values[::-1]
+    dfg['at_risk:1'] = dfg['removed:1'].cumsum().values[::-1]
+    return dfg
 
 
-def reduce_time_resolution(df, T):
-    """
-    Group together events in surivial data
-    across uniform time intervals.
+def reduce_time_resolution(df, T=None, interval_duration=None):
+    # reduce time resolution (over all genese simultenously)
+    assert T is not None or interval_duration is not None, "At least one must be provided"
 
-    Args:
-    :df: original dataset. Index represent time of events
-    :T:  maximal number of time intervals
+    tmax = df['time'].max()
+    tmin = df['time'].min()
 
-    """
-
-    Tmin = df.index.min()
-    Tmax = df.index.max()
-    tt = np.linspace(Tmin, Tmax, T + 1)
-    dfc = pd.DataFrame()
-    for t_down, t_up in zip(tt[:-1], tt[1:]):
-        dft = df[(t_down <= df.index) & (df.index < t_up)]
-        r = dft.sum()[['dead1', 'dead2', 'censored1', 'censored2']]
-        r['at-risk1'] = dft['at-risk1'].max()
-        r['at-risk2'] = dft['at-risk2'].max()
-        r_df = pd.DataFrame(r).T
-        dfc = pd.concat([dfc, r_df])
-    dfc = dfc.fillna(method='backfill').dropna()
-    dfc['t'] = np.arange(0, T)
-    return dfc.set_index('t')
+    if T is not None:
+        interval_duration = (tmax - tmin) / T
+    # otherwise use the provided interval_duration vlaue
+    
+    df_con = df.copy()
+    df_con.loc[:, 'time'] = (df['time'] - tmin) // interval_duration
+    return df_con
 
 
-def test_gene(data, gene_name, T, stbl=False, randomize=False):
+
+def test_gene(data, gene_name, T, stbl=True, randomize=False):
     """
     Evaluate all test statistics for comparing the survival curves
     for the two groups involving the response of :gene_name:
@@ -137,29 +81,32 @@ def test_gene(data, gene_name, T, stbl=False, randomize=False):
     :repetitions:  number of times to randomize the test
 
     """
+    
     if T > 0:
-        dfr = reduce_time_resolution(two_groups_gene(data, gene_name), T)
+        data_con = reduce_time_resolution(data[['time', 'event', gene_name]], T=T)
+        dfr = two_groups_table(data_con, gene_name)
     else:
-        dfr = two_groups_gene(data, gene_name)
+        dfr = two_groups_table(data, gene_name)
 
-    r = evaluate_test_stats(dfr['at-risk1'].values, dfr['at-risk2'].values,
-                            dfr['dead1'].values, dfr['dead2'].values,
+    r = evaluate_test_stats(dfr['at_risk:0'].values, dfr['at_risk:1'].values,
+                            dfr['observed:0'].values, dfr['observed:1'].values,
                             stbl=stbl, randomize=randomize, alternative='greater')
-    rrev = evaluate_test_stats(dfr['at-risk2'].values, dfr['at-risk1'].values,
-                            dfr['dead2'].values, dfr['dead1'].values,
+    rrev = evaluate_test_stats(dfr['at_risk:1'].values, dfr['at_risk:0'].values,
+                            dfr['observed:1'].values, dfr['observed:0'].values,
                             stbl=stbl, randomize=randomize, alternative='greater')
 
     r['name'] = gene_name
     rrev['name'] = gene_name
 
-    r['x0'] = dfr['at-risk1'].max()
-    r['y0'] = dfr['at-risk2'].max()
-    r['lam'] = (dfr['dead1'].sum() + dfr['dead2'].sum()) / (dfr['at-risk1'].sum() + dfr['at-risk2'].sum())
+    r['x0'] = dfr['at_risk:0'].max()
+    r['y0'] = dfr['at_risk:1'].max()
+    r['lam'] = (dfr['observed:0'].sum() + dfr['observed:1'].sum()) / (dfr['at_risk:0'].sum() + dfr['at_risk:1'].sum())
     
     rdf = pd.DataFrame(r, index=[0])
     revdf = pd.DataFrame(rrev, index=[0])
 
     return rdf.join(revdf, rsuffix='_rev')
+
 
 
 def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=10000):
@@ -174,8 +121,8 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
         :df:   data in a dataframe format
         :T:    number of time instances to consolidate the data to
         :stbl: parameter for type of HC to use
-        :randimize:  whether to randomize P-values
-        :rep:  number of repetitions
+        :randomize:  whether to randomize P-values
+        :rep:  number of repetitions in each sample. Useful for randomized statistics
 
     Return:
         :df0:  dataframe with test statistics as columns and genes as rows
@@ -183,6 +130,14 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
                 from the 1-alpha quantile of each test statistic over all
                 genes x repetitions
     """
+    logging.info("Simulating null data by randomizing group assignments in the provided time-to-event data.")
+
+    if randomize and (repetitions==1):
+        logging.warning("Randomized statistics are not meaningful with one repetition. Setting repetitions to 100")
+        repetitions = 100
+    if not randomize and repetitions > 1:
+        logging.warning("Non-randomized statistics are not meaningful with repetitions. Setting repetitions to 1")
+        repetitions = 1
 
     def sample_balanced_assignmet(T):
         """ Perfectly balanced assignment """
@@ -197,10 +152,10 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
     for itr in tqdm(range(nMonte)):
         logging.debug(f'Sampling a random assignment')
         a = sample_balanced_assignmet(len(df_test))
-        df_test = pd.DataFrame({'random_sample': a,
+        df_test = pd.DataFrame({'random_sample': a + 0.0,
                                 'time': df['time'],
                                 'event': df['event']})
-        # df_test.loc[:, 'random_sample'] = a
+        df_test['random_sample'] = df_test['random_sample'].astype(int)
         res_df = pd.DataFrame()
         for _ in range(repetitions):
             r = test_gene(df_test, 'random_sample', T, stbl=stbl, randomize=randomize)
@@ -259,7 +214,6 @@ def report_results(df0, res):
 
 def save_results(res, fn):
     print(f"Saving to {fn}")
-    #import pdb; pdb.set_trace()
     pd.DataFrame(res).to_csv(fn)
 
 def main():
@@ -268,6 +222,7 @@ def main():
     parser.add_argument('-o', type=str, help='output file', default='SCANB')
     parser.add_argument('-T', type=int, help='number of instances', default=100)
     parser.add_argument('-M', type=int, help='repetitions', default=1)
+    parser.add_argument('-nMonte', type=int, help='number of Monte-Carlo repetitions for null evalautions', default=10000)
     
 
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
@@ -293,9 +248,9 @@ def main():
     
     if args.null:
         print("Simulating null...")
-        res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize)
+        res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize, nMonte=args.nMonte)
         rand_str = "_randomized" if args.randomize else ""
-        stbl_str = "stable" if stbl else "not_stble"
+        stbl_str = "stable" if stbl else "not_stable"
         fn = f'{args.o}_null_{stbl}_T{T}{rand_str}_rep{args.M}.csv'
         save_results(res, fn)
     elif args.randomize:

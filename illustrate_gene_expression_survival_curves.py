@@ -14,8 +14,7 @@ $python3 illustrate_gene_expression_survival_curves.py -data Data/SCANB_groups_v
 
 """
 
-SELECTED_GENES = ['SIGMAR1', 'ST6GALNAC5', 'DCK', 'ADSS', 'KCTD9', 'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9',
-                'FBXL12', 'PDE6D', 'BTNL8']
+#SELECTED_GENES = ['SIGMAR1', 'ST6GALNAC5', 'DCK', 'ADSS', 'KCTD9', 'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9', 'FBXL12', 'PDE6D', 'BTNL8']
 
 import argparse
 import logging
@@ -24,11 +23,12 @@ import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 
-from test_gene_expression import reduce_time_resolution, two_groups_gene
+from test_gene_expression import reduce_time_resolution, two_groups_table
 from survival import evaluate_test_stats, multi_pvals
 from multitest import MultiTest
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from lifelines import KaplanMeierFitter
 
 plt.rcParams['figure.figsize'] = [12, 6]
 mpl.style.use('ggplot')
@@ -52,31 +52,97 @@ def load_data(data_file_path, ):
 def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.5):
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     mt = MultiTest(pvals[pvals <= 1], stbl=stbl)
-    hc, hct = mt.hc(gamma=gamma)
+    _, hct = mt.hc(gamma=gamma)
     return pvals <= hct
 
 
-def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
+def plot_survival_curve_time2event(df):
+    # Fit & plot leukemia dataset
+    kmf1 = KaplanMeierFitter()
+    df1  = df[df['group'] == 0]
+    kmf1.fit(df1['time'], df1['event'], label='$\hat{S}_x$')
+    ax = kmf1.plot(ci_show = False, show_censors=True)
+
+    kmf2 = KaplanMeierFitter()
+    df2  = df[df['group'] >= 1]
+    kmf2.fit(df2['time'], df2['event'], label='$\hat{S}_y$')
+    ax = kmf2.plot(ci_show = False, show_censors=True)
+    plt.legend(fontsize=18)
+
+
+def illustrate_survival_curve_time2event(df_time2event,
+                                        stbl=True, # type of HC stat
+                               show_HCT=True, randomize_HC=False,
+                               show_stats_in_title=True, flip_sides=False):
+    
+    plot_survival_curve_time2event(df_time2event)
+
+     # to table representation
+    dfg = two_groups_table(df_time2event, 'group')
+
+    Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
+    Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
+
+    stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=randomize_HC)
+    stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=randomize_HC)
+    if flip_sides and (stats['hc_greater'] < stats_rev['hc_greater']): # reverse groups
+        dfg = dfg.rename(columns={'at_risk:0': 'at_risk:1', 'at_risk:1': 'at_risk:0',
+                                'observed:0': 'observed:1', 'observed:1': 'observed:0',
+                                'censored:0': 'censored:1', 'censored:1': 'censored:0'
+                                })
+        temp = stats
+        stats = stats_rev
+        stats_rev = temp
+        Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
+        Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
+
+    pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
+    pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
+    
+    dfg['pvalue'] = pvals
+    dfg['pvalue_rev'] = pvals_rev
+    
+    fpval = find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True)
+    df_disp = dfg[fpval].rename(columns={'at_risk:0': 'at_risk X', 'at_risk:1': 'at_risk Y',
+                                         'observed:0': 'observed X', 'observed:1': 'observed Y'
+                                         })
+    
+    if show_HCT:
+        plt.bar(dfg.index[:len(fpval)], fpval, color='k', alpha=.2, width=.5)
+        
+    if show_stats_in_title:
+        stats_str = f"HC={np.round(stats['hc_greater'],2)}, Log-rank={np.round(stats['log_rank_greater'],2)}"
+        T = df_time2event['time'].max()
+        plt.text(int(T/3), 1, stats_str, backgroundcolor='white')
+    plt.ylabel('Proportion', fontsize=16)
+    plt.xlabel(r'Duration', fontsize=16)
+
+    return df_disp, dfg
+
+
+def illustrate_survival_curve_gene(df, gene_name, T, stbl=True,
                                show_HCT=True, randomize_HC=False,
                                show_stats_in_title=True):
-    dfg = reduce_time_resolution(two_groups_gene(df, gene_name), T)
+    
+    data_con = reduce_time_resolution(df.filter(['time', 'event', gene_name]), T=T)
+    dfg = two_groups_table(data_con, gene_name)
 
-    Nt1, Nt2 = dfg['at-risk1'].values, dfg['at-risk2'].values
-    Ot1, Ot2 = dfg['dead1'].values, dfg['dead2'].values
+    Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
+    Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
 
     stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=randomize_HC)
     stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=randomize_HC)
     if stats['hc_greater'] < stats_rev['hc_greater']:  # reverse groups
-        dfg = dfg.rename(columns={'at-risk1': 'at-risk2', 'at-risk2': 'at-risk1',
-                                  'dead1': 'dead2', 'dead2': 'dead1',
-                                  'censored1': 'censored2', 'censored2': 'censored1'
+        dfg = dfg.rename(columns={'at_risk:0': 'at_risk:1', 'at_risk:1': 'at_risk:0',
+                                  'observed:0': 'observed:1', 'observed:1': 'observed:0',
+                                  'censored:0': 'censored:1', 'censored:1': 'censored:0'
                                   })
         temp = stats
         stats = stats_rev
         stats_rev = temp
 
-    Nt1, Nt2 = dfg['at-risk1'].values, dfg['at-risk2'].values
-    Ot1, Ot2 = dfg['dead1'].values, dfg['dead2'].values
+    Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
+    Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
 
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
@@ -84,22 +150,22 @@ def illustrate_survival_curve_gene(df, gene_name, T, stbl=False,
 
     dfg['pvalue'] = pvals
     dfg['pvalue_rev'] = pvals_rev
-    cumc1 = dfg['censored1'].cumsum()
-    cumc2 = dfg['censored2'].cumsum()
-    dfg['Survival Proportion X'] = (dfg['at-risk1'] - dfg['censored1']) / (dfg['at-risk1'].max() - cumc1)
-    dfg['Survival Proportion Y'] = (dfg['at-risk2'] - dfg['censored2']) / (dfg['at-risk2'].max() - cumc2)
-    # dfg['censored1'] = dfg['at-risk1'] - dfg['']
+    cumc1 = dfg['censored:0'].cumsum()
+    cumc2 = dfg['censored:1'].cumsum()
+    dfg['Survival Proportion X'] = (dfg['at_risk:0'] - dfg['censored:0']) / (dfg['at_risk:0'].max() - cumc1)
+    dfg['Survival Proportion Y'] = (dfg['at_risk:1'] - dfg['censored:1']) / (dfg['at_risk:1'].max() - cumc2)
+    # dfg['censored:0'] = dfg['at_risk:0'] - dfg['']
 
-    df_disp = dfg[fpval].rename(columns={'at-risk1': 'at-risk X', 'at-risk2': 'at-risk Y',
-                                         'dead1': 'events X', 'dead2': 'events Y'
+    df_disp = dfg[fpval].rename(columns={'at_risk:0': 'at_risk X', 'at_risk:1': 'at_risk Y',
+                                         'observed:0': 'observed X', 'observed:1': 'observed Y'
                                          })
 
     plt.step(dfg.index, dfg['Survival Proportion X'], 'b', where='pre')
     plt.step(dfg.index, dfg['Survival Proportion Y'], 'r', where='pre')
-    ct1 = dfg['censored1'] > 0
-    ct2 = dfg['censored2'] > 0
-    s1 = 10 * (dfg.loc[ct1, 'censored1'].max() / dfg.loc[ct1, 'censored1']).values
-    s2 = 10 * (dfg.loc[ct2, 'censored2'].max() / dfg.loc[ct2, 'censored2']).values
+    ct1 = dfg['censored:0'] > 0
+    ct2 = dfg['censored:1'] > 0
+    s1 = 10 * (dfg.loc[ct1, 'censored:0'].max() / dfg.loc[ct1, 'censored:0']).values
+    s2 = 10 * (dfg.loc[ct2, 'censored:1'].max() / dfg.loc[ct2, 'censored:1']).values
     plt.scatter(dfg.index[ct1], dfg.loc[ct1, 'Survival Proportion X'],
                 marker='+', c='b',
                 s=s1, alpha=.5)
@@ -147,31 +213,21 @@ def main():
 
         fig_filename = outdir + gene_name + ".png"
         plt.figure()
-        df_disp, dfp = illustrate_survival_curve_gene(df, gene_name, T, stbl=True)
-        logging.info(f"Writing survival curve to {fig_filename}.")
+
+        df_gene = df.filter([gene_name, 'time', 'event'])
+        df_gene_T = reduce_time_resolution(df_gene, T=T)
+        df_disp, dfg = illustrate_survival_curve_time2event(df_gene_T.rename(columns={gene_name : 'group'}))
+        plt.ylim([0.7,1.01])
+
+        logging.info(f"Writing survival curve figure to {fig_filename}.")
         plt.savefig(fig_filename)
-        plt.show()
 
         dfd = df_disp.copy()
-        dfd = dfd.iloc[:, :-2]
-
-        for tag in ['pvalue', 'pvalue_rev']:
-            dfd[tag] = np.round(dfd[tag], 3)
-
-        for tag in ['at-risk X', 'at-risk Y', 'events X', 'events Y']:
-            dfd[tag] = dfd[tag].astype(int)
-
-        dfd.index.name = 'time'
-
         table_filename = outdir + f'{gene_name}.csv'
         logging.info(f"Writing table of suspected time instances to {table_filename}.")
-        dfd.filter(['at-risk X', 'at-risk Y', 'events X', 'events Y', 'pvalue', 'pvalue_rev']) \
+        dfd.filter(['at_risk X', 'at_risk Y', 'observed X', 'observed Y', 'pvalue', 'pvalue_rev']) \
             .to_csv(table_filename)
 
 
 if __name__ == '__main__':
     main()
-
-
-
-
