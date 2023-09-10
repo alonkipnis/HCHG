@@ -14,7 +14,8 @@ $python3 illustrate_gene_expression_survival_curves.py -data Data/SCANB_groups_v
 
 """
 
-#SELECTED_GENES = ['SIGMAR1', 'ST6GALNAC5', 'DCK', 'ADSS', 'KCTD9', 'VAMP4', 'HIST1H3G', 'TMEM38B', 'SIGMAR1', 'SMG9', 'FBXL12', 'PDE6D', 'BTNL8']
+SELECTED_GENES = ['ERGIC2', 'EPB41L4B', 'TOR1AIP2']
+
 
 import argparse
 import logging
@@ -75,8 +76,7 @@ def illustrate_survival_curve_time2event(df_time2event,
                                show_HCT=True, randomize_HC=False,
                                show_stats_in_title=True, flip_sides=False):
     
-    plot_survival_curve_time2event(df_time2event)
-
+    
      # to table representation
     dfg = two_groups_table(df_time2event, 'group')
 
@@ -95,13 +95,16 @@ def illustrate_survival_curve_time2event(df_time2event,
         stats_rev = temp
         Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
         Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
+        logging.info("Flipped sides")
 
+    plot_survival_curve_time2event(df_time2event)
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
     
     dfg['pvalue'] = pvals
     dfg['pvalue_rev'] = pvals_rev
     
+
     fpval = find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True)
     df_disp = dfg[fpval].rename(columns={'at_risk:0': 'at_risk X', 'at_risk:1': 'at_risk Y',
                                          'observed:0': 'observed X', 'observed:1': 'observed Y'

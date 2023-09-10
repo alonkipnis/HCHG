@@ -179,16 +179,27 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
 
     Nt1 = np.concatenate([Nt1, [Nt1[-1]-Ot1[-1]]], axis=0)
-    Nt2 = np.concatenate([Nt2, [Nt1[-1]-Ot2[-1]]], axis=0)
-    Ct1 = np.maximum(-np.diff(Nt1) - Ot1, 0)
-    Ct2 = np.maximum(-np.diff(Nt2) - Ot2, 0)
+    Nt2 = np.concatenate([Nt2, [Nt2[-1]-Ot2[-1]]], axis=0)
+    Ct1 = (-np.diff(Nt1) - Ot1).astype(int)
+    Ct2 = (-np.diff(Nt2) - Ot2).astype(int)
 
-    dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington']
-    for wt in weightings:
-        res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt, p=1, q=0).test_statistic
+    assert np.abs(Ct1).sum() == 0
+    assert np.abs(Ct2).sum() == 0
 
-    return res
+
+    res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
+
+    # dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
+    # weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington10', 'fleming-harrington01']
+    # for wt in weightings:
+    #     if wt == 'fleming-harrington10':
+    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=0).test_statistic
+    #     elif wt == 'fleming-harrington01':
+    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0, q=1).test_statistic
+    #     else:
+    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt).test_statistic
+
+    return {**res, **res_ll}
 
 
 
@@ -247,9 +258,14 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
 def evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2):
     res = {}
     dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington']
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto']#, 'fleming-harrington10', 'fleming-harrington01']
     for wt in weightings:
-        res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt, p=0, q=0).test_statistic
+        if wt == 'fleming-harrington10':
+            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=0).test_statistic
+        elif wt == 'fleming-harrington01':
+            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0, q=1).test_statistic
+        else:
+            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt).test_statistic
     return res
 
 
