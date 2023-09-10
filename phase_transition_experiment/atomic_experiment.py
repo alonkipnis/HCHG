@@ -77,6 +77,7 @@ def sample_from_mixture(lmd0, lmd1, eps) :
     lmd[idcs] = np.array(lmd1)[idcs]
     return np.random.poisson(lam=lmd)
 
+
 def power_law(n, xi) :
     p = np.arange(1.,n+1) ** (-xi)
     return p / p.sum()

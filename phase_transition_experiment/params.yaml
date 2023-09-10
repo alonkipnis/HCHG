@@ -10,13 +10,13 @@ names:  # order matter! order should match the one received by `evalaute`
 itr:  # Monte Carlo iterations
   type: 'range(int)'
   min: 1
-  max: 37
+  max: 200
 
 r:    # signal strength
   type: 'range(float)'
   min: 0
   max: 2.2
-  length: 13
+  length: 23
 
 beta: # signal rarity
   type: 'list(float)'
