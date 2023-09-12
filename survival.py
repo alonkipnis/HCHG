@@ -159,7 +159,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
     stbl = kwargs.get('stbl', True)
     discard_ones = kwargs.get('discard_ones', True)  # ignore P-values that are one
-
+    no_censoring = kwargs.get('no_censoring', False) 
 
     if alternative == 'both':
         r_greater = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='greater',
@@ -183,21 +183,15 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     Ct1 = (-np.diff(Nt1) - Ot1).astype(int)
     Ct2 = (-np.diff(Nt2) - Ot2).astype(int)
 
-    assert np.abs(Ct1).sum() == 0
-    assert np.abs(Ct2).sum() == 0
+    assert np.all(Ct1 >= 0)
+    assert np.all(Ct2 >= 0)
 
+    if no_censoring:
+        assert np.abs(Ct1).sum() == 0
+        assert np.abs(Ct2).sum() == 0
+    
 
     res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
-
-    # dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    # weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington10', 'fleming-harrington01']
-    # for wt in weightings:
-    #     if wt == 'fleming-harrington10':
-    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=0).test_statistic
-    #     elif wt == 'fleming-harrington01':
-    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0, q=1).test_statistic
-    #     else:
-    #         res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt).test_statistic
 
     return {**res, **res_ll}
 
@@ -258,10 +252,10 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
 def evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2):
     res = {}
     dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto']#, 'fleming-harrington10', 'fleming-harrington01']
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington11', 'fleming-harrington01']
     for wt in weightings:
-        if wt == 'fleming-harrington10':
-            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=0).test_statistic
+        if wt == 'fleming-harrington11':
+            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=1).test_statistic
         elif wt == 'fleming-harrington01':
             res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0, q=1).test_statistic
         else:
@@ -287,7 +281,7 @@ def simulate_null(T, N1, N2, lam0, nMonte, alternative='greater'):
         Ot1 = -np.diff(Nt1)
         Ot2 = -np.diff(Nt2)
         res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
-                                  stbl=STBL, alternative=alternative)
+                                  stbl=STBL, alternative=alternative, no_censoring=True)
         df0 = df0.append(res, ignore_index=True)
 
     # critical values under the null:
@@ -332,7 +326,7 @@ def evaluate_rare_and_weak(itr, T, N1, N2, lam0, beta, r):
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
-                              randomized=True, alternative='both', stbl=STBL)
+                              randomized=True, alternative='both', stbl=STBL, no_censoring=True)
     return res
 
 

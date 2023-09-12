@@ -14,7 +14,7 @@ $python3 illustrate_gene_expression_survival_curves.py -data Data/SCANB_groups_v
 
 """
 
-SELECTED_GENES = ['ERGIC2', 'EPB41L4B', 'TOR1AIP2']
+SELECTED_GENES = ['EDEM3', 'EMILIN2', 'ERGIC2', 'CAPN9', 'EPB41L4B', 'TOR1AIP2', 'DDX5', 'MRAS', 'BCAS4', 'MALL']
 
 
 import argparse
@@ -75,8 +75,7 @@ def illustrate_survival_curve_time2event(df_time2event,
                                         stbl=True, # type of HC stat
                                show_HCT=True, randomize_HC=False,
                                show_stats_in_title=True, flip_sides=False):
-    
-    
+        
      # to table representation
     dfg = two_groups_table(df_time2event, 'group')
 
@@ -86,17 +85,15 @@ def illustrate_survival_curve_time2event(df_time2event,
     stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=randomize_HC)
     stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=randomize_HC)
     if flip_sides and (stats['hc_greater'] < stats_rev['hc_greater']): # reverse groups
-        dfg = dfg.rename(columns={'at_risk:0': 'at_risk:1', 'at_risk:1': 'at_risk:0',
-                                'observed:0': 'observed:1', 'observed:1': 'observed:0',
-                                'censored:0': 'censored:1', 'censored:1': 'censored:0'
-                                })
+        df_time2event.loc[:, 'group'] = df_time2event['group'].apply(lambda x : 1 - x) # flip groups
+        dfg = two_groups_table(df_time2event, 'group')
         temp = stats
         stats = stats_rev
         stats_rev = temp
         Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
         Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
         logging.info("Flipped sides")
-
+        
     plot_survival_curve_time2event(df_time2event)
     pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
     pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)

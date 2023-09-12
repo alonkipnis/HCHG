@@ -34,16 +34,37 @@ def infstd(x):
 def two_groups_table(data, group_indicator_name):
     """
     Create two-groups survival table from events
+    
+    at_risk columns is the number of individuals at risk at the beginning of the interval
+    removed columns is the number of individuals removed from the risk set within the interval
+    observed columns is the number of individuals that experienced the event within the interval
+    censored columns is the number of individuals that were censored within the interval
 
     Args:
-        data is a dataframe with columns: 'time', 'event', <group_indicator_name>
+        :data: is a dataframe with columns: 'time', 'event', <group_indicator_name>
+
+    Return:
+        :dfr: is a dataframe with columns: at_risk:0, at_risk:1, removed:0, removed:1, observed:0, observed:1, censored:0, censored:1
+        One entry per time interval
     """
     
     r = group_survival_table_from_events(groups=data[group_indicator_name], durations=data['time'], event_observed=data['event'])
-    dfg = pd.concat(r[1:], axis=1)
-    dfg['at_risk:0'] = dfg['removed:0'].cumsum().values[::-1]
-    dfg['at_risk:1'] = dfg['removed:1'].cumsum().values[::-1]
-    return dfg
+    dfr = pd.concat(r[1:], axis=1)
+
+    assert np.all(dfr['removed:0'] - dfr['censored:0'] == dfr['observed:0'])
+    assert np.all(dfr['removed:1'] - dfr['censored:1'] == dfr['observed:1'])
+
+    dfr = pd.concat(r[1:], axis=1)
+
+    total0 = dfr['removed:0'].sum()
+    a0 = dfr['removed:0'].cumsum()
+    dfr['at_risk:0'] = (total0 - a0).shift(1).fillna(total0)
+
+    total1 = dfr['removed:1'].sum()
+    a1 = dfr['removed:1'].cumsum()
+    dfr['at_risk:1'] = (total1 - a1).shift(1).fillna(total1)
+    
+    return dfr
 
 
 def reduce_time_resolution(df, T=None, interval_duration=None):
@@ -218,7 +239,7 @@ def save_results(res, fn):
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze SCANB')
-    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups.csv')
+    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups_valid.csv')
     parser.add_argument('-o', type=str, help='output file', default='SCANB')
     parser.add_argument('-T', type=int, help='number of instances', default=100)
     parser.add_argument('-M', type=int, help='repetitions', default=1)
@@ -228,8 +249,6 @@ def main():
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
     parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
     parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--analyze', action='store_true')
     parser.add_argument('--report-null-stats', action='store_true')
     args = parser.parse_args()
     #
@@ -240,7 +259,6 @@ def main():
         report_null_stats(df0, T)
 
     stbl = args.stbl
-    M =args.M
     print("stbl = ", stbl)
 
     print(f"Reading data from {args.i}...")
