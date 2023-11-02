@@ -24,6 +24,8 @@ logging.basicConfig(level=logging.INFO)
 
 from test_gene_expression import reduce_time_resolution, two_groups_table
 from survival import evaluate_test_stats, multi_pvals
+
+from multiHGtest import testHG_dashboard
 from multitest import MultiTest
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -92,23 +94,20 @@ def illustrate_survival_curve_time2event(df_time2event,
         logging.info("Flipped sides")
         
     plot_survival_curve_time2event(df_time2event)
-    pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
-    pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
+
+    dfg, statsHG = testHG_dashboard(Nt1, Nt2, Ot1, Ot2, 
+                                    randomize=False, stbl=True, alternative='greater')
+
+    np.testing.assert_almost_equal(statsHG['hc'], stats['hc_greater'])
     
-    dfg['pvalue'] = pvals
-    dfg['pvalue_rev'] = pvals_rev
-    
-    fpval = find_changes(pvals, stbl=True)
-    df_disp = dfg[fpval].rename(columns={'at_risk:0': 'at_risk X', 'at_risk:1': 'at_risk Y',
-                                         'observed:0': 'observed X', 'observed:1': 'observed Y'
-                                         })
-    
+    df_disp = dfg[dfg.HCT]
     if show_HCT:
-        plt.bar(dfg.index[:len(fpval)], fpval, color='k', alpha=.2, width=.5)
+        xvals = dfg.index[:len(df_disp)]
+        yvals = np.ones_like(xvals)
+        plt.bar(xvals, yvals, color='k', alpha=.2, width=.5)
         
     if show_stats_in_title:
         stats_str = f"HC={np.round(stats['hc_greater'],2)}, Log-rank={np.round(stats['log_rank_greater'],2)}"
-        T = df_time2event['time'].max()
         plt.title(stats_str)
     plt.ylabel('Proportion', fontsize=16)
     plt.xlabel(r'Duration', fontsize=16)

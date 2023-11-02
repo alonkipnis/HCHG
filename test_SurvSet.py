@@ -61,63 +61,6 @@ for ds_name in lo_ds_names:
 # ## Illustrate Curves
 
 # %%
-
-def illustrate_survival_curve_time2event(df_time2event,
-                                        stbl=True, # type of HC stat
-                               show_HCT=True, randomize_HC=False,
-                               show_stats_in_title=True, flip_sides=False):
-        
-     # to table representation
-    dfg = two_groups_table(df_time2event, 'group')
-
-    Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
-    Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
-
-    stats = evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, stbl=stbl, randomize=randomize_HC)
-    stats_rev = evaluate_test_stats(Nt2, Nt1, Ot2, Ot1, stbl=stbl, randomize=randomize_HC)
-    if flip_sides and (stats['hc_greater'] < stats_rev['hc_greater']): # reverse groups
-        df_time2event.loc[:, 'group'] = df_time2event['group'].apply(lambda x : 1 - x) # flip groups
-        dfg = two_groups_table(df_time2event, 'group')
-        temp = stats
-        stats = stats_rev
-        stats_rev = temp
-        Nt1, Nt2 = dfg['at_risk:0'].values, dfg['at_risk:1'].values
-        Ot1, Ot2 = dfg['observed:0'].values, dfg['observed:1'].values
-        logging.info("Flipped sides")
-        
-    plot_survival_curve_time2event(df_time2event)
-    
-    #pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False)
-    #pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, randomize=False)
-    
-    dfg, statsHG = testHG_dashboard(Nt1, Nt2, Ot1, Ot2, 
-                                    randomize=False, stbl=True, alternative='greater')
-
-    np.testing.assert_almost_equal(statsHG['hc'], stats['hc_greater'])
-
-    df_disp = dfg[dfg.HCT]
-    if show_HCT:
-        xvals = dfg.index[:len(df_disp)]
-        yvals = np.ones_like(xvals)
-        plt.bar(xvals, yvals, color='k', alpha=.2, width=.5)
-        
-    if show_stats_in_title:
-        stats_str = f"HC={np.round(stats['hc_greater'],2)}, Log-rank={np.round(stats['log_rank_greater'],2)}"
-        plt.title(stats_str)
-    plt.ylabel('Proportion', fontsize=16)
-    plt.xlabel(r'Duration', fontsize=16)
-
-    return df_disp, dfg
-
-
-# %% [markdown]
-# ## To do: 
-# Understand why HC value evaluated from HGdashboard is different than 
-# the one from ``evalaute_test_stats``
-# 
-# It's because in one case we removed p-values identical to one and in another we did not.
-
-# %%
 from test_gene_expression import test_gene
 
 def sample_balanced_assignmet(T):
@@ -152,10 +95,13 @@ critvals = {}
 for ds_name in lo_datasets:
         print(f"Simulating for dataset {ds_name}...")
         df, ref = loader.load_dataset(ds_name=ds_name).values()
-        critvals[ds_name] = simulate_critvals(df, nMonte)
+        critvals[ds_name] = simulate_critvals(df, nMonte).to_dict()
+
+import json
+with open("survset_critvals.json", 'w', encoding='utf-8') as f:
+    json.dump(critvals, f, ensure_ascii=False, indent=4)
 
 
-# %%
 lo_stats = ['hc_greater', 'log_rank_greater', 'log_rank_pval_greater',
             'hc_greater_rev', 'log_rank_greater_rev', 'log_rank_pval_greater_rev',
             'fisher_greater', 'min_p_greater', 'fisher_greater_rev', 'min_p_greater_rev',
