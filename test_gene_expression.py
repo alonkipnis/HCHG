@@ -3,7 +3,7 @@ import scipy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from lifelines.utils import survival_table_from_events, group_survival_table_from_events
+from lifelines.utils import group_survival_table_from_events
 
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
@@ -249,15 +249,10 @@ def main():
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
     parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
     parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
-    parser.add_argument('--report-null-stats', action='store_true')
     args = parser.parse_args()
     #
 
     T = args.T
-    if args.report_null_stats:
-        df0 = pd.read_csv(args.i)
-        report_null_stats(df0, T)
-
     stbl = args.stbl
     print("stbl = ", stbl)
 

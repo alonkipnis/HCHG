@@ -127,11 +127,8 @@ def multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False, alternative='greater'):
     assert (len(Ot1) == len(Ot2))
     assert (len(Ot1) == len(Nt1))
 
-    Nt = Nt2 + Nt1
-
-    pvals = hypergeom_test(Ot2, Nt, Nt2, Ot1 + Ot2,
+    pvals = hypergeom_test(Ot2, Nt2 + Nt1, Nt2, Ot1 + Ot2,
                             randomize=randomize, alternative=alternative)
-
     return pvals
 
 
@@ -156,10 +153,10 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     """
 
     randomize = kwargs.get('randomize', False)
-    alternative = kwargs.get('alternative', 'both')  # 'both' != 'two-sided'
+    alternative = kwargs.get('alternative', 'both')  # NOTE: 'both' != 'two-sided'
     stbl = kwargs.get('stbl', True)
-    discard_ones = kwargs.get('discard_ones', True)  # ignore P-values that are one
-    no_censoring = kwargs.get('no_censoring', False) 
+    discard_ones = kwargs.get('discard_ones', False)  # ignore P-values that are exactly one
+    no_censoring = kwargs.get('no_censoring', False) # for data integrity
 
     if alternative == 'both':
         r_greater = _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative='greater',
@@ -185,12 +182,11 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
     assert np.all(Ct1 >= 0)
     assert np.all(Ct2 >= 0)
-
+    
     if no_censoring:
         assert np.abs(Ct1).sum() == 0
         assert np.abs(Ct2).sum() == 0
     
-
     res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
 
     return {**res, **res_ll}
@@ -199,7 +195,7 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
 
 def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
                          randomize=False,
-                         stbl=False, discard_ones=True):
+                         stbl=True, discard_ones=False):
     """
     Evaluate many tests for comparing the lists Nt1 and Nt2
 
@@ -252,12 +248,14 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
 def evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2):
     res = {}
     dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington11', 'fleming-harrington01']
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington55', 'fleming-harrington11', 'fleming-harrington01']
     for wt in weightings:
         if wt == 'fleming-harrington11':
             res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=1).test_statistic
         elif wt == 'fleming-harrington01':
             res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0, q=1).test_statistic
+        elif wt == 'fleming-harrington55':
+            res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=0.5, q=0.5).test_statistic
         else:
             res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings=wt).test_statistic
     return res
@@ -276,7 +274,7 @@ def simulate_null(T, N1, N2, lam0, nMonte, alternative='greater'):
 
     df0 = pd.DataFrame()
     print("Simulating null...")
-    for itr in tqdm(range(nMonte)):
+    for _ in tqdm(range(nMonte)):
         Nt1, Nt2 = sample_survival_poisson(T, N1, N2, lam0, 0, 0)
         Ot1 = -np.diff(Nt1)
         Ot2 = -np.diff(Nt2)
@@ -326,7 +324,7 @@ def evaluate_rare_and_weak(itr, T, N1, N2, lam0, beta, r):
     Ot1 = -np.diff(Nt1)
     Ot2 = -np.diff(Nt2)
     res = evaluate_test_stats(Nt1[:-1], Nt2[:-1], Ot1, Ot2,
-                              randomized=True, alternative='both', stbl=STBL, no_censoring=True)
+                              randomized=False, alternative='both', stbl=STBL, no_censoring=True)
     return res
 
 

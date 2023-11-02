@@ -21,12 +21,18 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
 mpl.style.use('ggplot')
 from multitest import MultiTest
-from tqdm import tqdm
 from illustrate_gene_expression_survival_curves import illustrate_survival_curve_gene
 
-OUTPUT_DIR = 'Figs/'
+OUTPUT_DIR_FIGS = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/Figs/"
+OUTPUT_DIR_CSV = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/csv/"
 
-SELECTED_GENES = ['EDEM3', 'EMILIN2', 'CRADD', 'MBD3', 'EPB41L4B', 'ANKLE2', 'DDX5', 'MRAS', 'BCAS4', 'MALL']
+#OUTPUT_DIR_FIGS = 'Figs/'
+#OUTPUT_DIR_CSV = 'csv/'
+
+SELECTED_GENES = ['FAM20B', 'PBX1', 'IL10RB', 'MBD3', 'MRPS2', 'ANKLE2', 'DDX5', 'MRAS', 'CLCF1', 'MALL']
+
+STATS_TO_DISPLAY = ['hc_greater', 'log_rank_greater', 'logrank_lifelines_fleming-harrington01',
+                    'logrank_lifelines_tarone-ware', 'logrank_lifelines_peto']
 
 
 STATS = ['hc_greater', 'hc_greater_rev', 'log_rank_greater', 'log_rank_greater_rev',
@@ -38,19 +44,20 @@ STATS = ['hc_greater', 'hc_greater_rev', 'log_rank_greater', 'log_rank_greater_r
         #'logrank_lifelines_fleming-harrington10', 'logrank_lifelines_fleming-harrington10_rev'
         ]
 
-
 NAME_NEAT = {'hc_greater': "HCHG",
              'log_rank_greater': 'Log-rank',
         'logrank_lifelines_fleming-harrington01': 'Fleming-Harrington01',
         'logrank_lifelines_fleming-harrington01_rev': 'Fleming-Harrington01',
+        'logrank_lifelines_fleming-harrington11': 'Fleming-Harrington11',
+        'logrank_lifelines_fleming-harrington11_rev': 'Fleming-Harrington11',
        #'logrank_lifelines_fleming-harrington10': 'Fleming-Harrington10',
        #'logrank_lifelines_fleming-harrington10_rev': 'Fleming-Harrington10',
        'logrank_lifelines_tarone-ware': 'Tarone-Ware',
        'logrank_lifelines_tarone-ware_rev': 'Tarone-Ware',
-        'logrank_lifelines_peto': 'Peto',
-        'logrank_lifelines_peto_rev': 'Peto',
-        'logrank_lifelines_wilcoxon': 'Wilcoxon',
-        'logrank_lifelines_wilcoxon_rev': 'Wilcoxon',
+        'logrank_lifelines_peto': 'Peto-Peto',
+        'logrank_lifelines_peto_rev': 'Peto-Peto',
+        'logrank_lifelines_wilcoxon': 'Gehan-Wilcoxon',
+        'logrank_lifelines_wilcoxon_rev': 'Gehan-Wilcoxon',
         'others': 'Others'
         }
 
@@ -60,11 +67,22 @@ COLOR_LIST_STATS = {'HCHG': 'tab:red',
                     'Fleming-Harrington01': 'tab:orange',
                     #'Fleming-Harrington10': 'tab:orange',
                     'Tarone-Ware': 'tab:purple',
-                    'Peto': 'tab:brown',
-                    'Wilcoxon': 'tab:pink',
+                    'Peto-Peto': 'tab:brown',
+                    'Gehan-Wilcoxon': 'tab:green',
                     'Others': 'tab:purple',
                     }
                     
+
+def load_data(data_file_path):
+    df = pd.read_csv(data_file_path)
+    gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
+    div_probs = df.agg(['mean'])
+    thresh = 0.001
+    invalid_genes = [g for g in gene_names if np.abs(div_probs[g]['mean'] - 0.5) > thresh]
+    df.drop(columns=invalid_genes + ['Unnamed: 0'])
+    assert (len(invalid_genes) == 0)
+    return df
+
 
 def qnt(x, q):
     """
@@ -175,7 +193,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
     s1 = set(names[get_discoverable_by_statistic(res, 'hc_greater', sig_level, side='strict')])
     s2 = set(names[get_discoverable_by_statistic(res, 'log_rank_greater', sig_level, side='strict')])
     plot_venn2({'hc_greater': s1, 'log_rank_greater': s2})
-    filepath = OUTPUT_DIR + "venn_HCHG_LR_strict.png"
+    filepath = OUTPUT_DIR_FIGS + "venn_HCHG_LR_strict.png"
     plt.savefig(filepath,transparent=True, bbox_inches='tight', pad_inches=0)
     logging.info("Saved figure in " + filepath)
     plt.close()
@@ -185,7 +203,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
     s1 = set(names[get_discoverable_by_statistic(res, 'hc_greater', sig_level, side='either')])
     s2 = set(names[get_discoverable_by_statistic(res, 'log_rank_greater', sig_level, side='either')])
     plot_venn2({'hc_greater': s1, 'log_rank_greater': s2})
-    filepath = OUTPUT_DIR + "venn_HCHG_LR_either.png"
+    filepath = OUTPUT_DIR_FIGS + "venn_HCHG_LR_either.png"
     plt.savefig(filepath,dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
     logging.info("Saved figure in " + filepath)
     plt.close()
@@ -198,7 +216,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
 
     plot_venn2({'hc_greater': s1, 'others': s2})
 
-    filepath = OUTPUT_DIR + "venn_HCHG_others_either.png"
+    filepath = OUTPUT_DIR_FIGS + "venn_HCHG_others_either.png"
     plt.savefig(filepath,dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
     logging.info("Saved figure in " + filepath)
     plt.close()
@@ -214,7 +232,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
                 'logrank_lifelines_fleming-harrington01': s3
                 })
 
-    filepath = OUTPUT_DIR + "venn_HCHG_others_either_side1.png"
+    filepath = OUTPUT_DIR_FIGS + "venn_HCHG_others_either_side1.png"
     plt.savefig(filepath,dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
     logging.info("Saved figure in " + filepath)
     plt.close()
@@ -229,7 +247,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
                 'logrank_lifelines_tarone-ware': s3
                 })
 
-    filepath = OUTPUT_DIR + "venn_HCHG_others_either_side2.png"
+    filepath = OUTPUT_DIR_FIGS + "venn_HCHG_others_either_side2.png"
     plt.savefig(filepath, dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
     logging.info("Saved figure in " + filepath)
     plt.close()
@@ -254,7 +272,7 @@ def report_results_HC_logrank(res:pd.DataFrame, sig_level=0.05):
     print(f"\tDiscoverable by HCHG and LR: ", np.sum(hc_1side_strict & log_rank_1side_strict))
     print(f"\tDiscoverable by HCHG but not LR: ", np.sum(hc_1side_strict & (~log_rank_1side_strict) )   )
     print(f"\tDiscoverable by LR but not HCHG: ", np.sum((~hc_1side_strict) & ( log_rank_1side_strict) )   )
-    print(f"\tDiscoverable by neigher HCHG nor LR: ", np.sum((~hc_1side_strict) & (~log_rank_1side_strict) )   )
+    print(f"\tDiscoverable by neither HCHG nor LR: ", np.sum((~hc_1side_strict) & (~log_rank_1side_strict) )   )
 
     print(" Either side effect:")
 
@@ -264,7 +282,7 @@ def report_results_HC_logrank(res:pd.DataFrame, sig_level=0.05):
     print(f"\tDiscoverable by HCHG and LR: ", np.sum(hc_1side_either & log_rank_1side_either))
     print(f"\tDiscoverable by HCHG but not LR: ", np.sum(hc_1side_either & (~log_rank_1side_either) )   )
     print(f"\tDiscoverable by LR but not HCHG: ", np.sum((~hc_1side_either) & ( log_rank_1side_either) )   )
-    print(f"\tDiscoverable by neigher HCHG nor LR: ", np.sum((~hc_1side_either) & (~log_rank_1side_either) )   )
+    print(f"\tDiscoverable by neither HCHG nor LR: ", np.sum((~hc_1side_either) & (~log_rank_1side_either) )   )
 
     # all stats except HC
     STATS_no_HC = [s for s in STATS if 'hc_' not in s]
@@ -314,15 +332,13 @@ def find_changes(Nt1, Nt2, Ot1, Ot2, stbl=True, gamma=.4):
     return pvals <= hct
 
 
-def prepare_for_display(resi_disp, stats_to_display=['hc_greater', 'log_rank_greater', 'logrank_lifelines_fleming-harrington01',
-                                                    'logrank_lifelines_tarone-ware', 
-                                                    'logrank_lifelines_peto']):
+def prepare_for_display(resi_disp):
     df = resi_disp.copy()
     flip_idc = df['hc_greater'] < df['hc_greater_rev']
     df['flip'] = '$>$ med'
     df.loc[flip_idc, 'flip'] = '$<$ med'
     lo_stats_to_display = []
-    for stat_name in stats_to_display:
+    for stat_name in STATS_TO_DISPLAY:
         df.loc[:, NAME_NEAT[stat_name]] = np.minimum(df[stat_name+'_pvalue'], df[stat_name+'_rev_pvalue'])
         lo_stats_to_display.append(NAME_NEAT[stat_name])
         
@@ -330,14 +346,23 @@ def prepare_for_display(resi_disp, stats_to_display=['hc_greater', 'log_rank_gre
 
     return rr
 
-
-
+def get_pvals_for_gene(resi_disp, gene_name):
+    rr = []
+    for stat in STATS_TO_DISPLAY:
+        r = resi_disp[resi_disp.name == gene_name]
+        if len(r) == 0:
+            print(f"Error: could not find gene {gene_name}")
+        rr.append({'stat': stat, 'p-value': r[stat + '_pvalue'].values[0]})
+    return pd.DataFrame(rr).set_index('stat')
 
 def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-null', type=str, help='null data file (csv)')
     parser.add_argument('-results', type=str, help='results file (csv)')
-    parser.add_argument('-o', type=str, help='output table', default="table.csv")
+    parser.add_argument('-o', type=str, help='output table', default=OUTPUT_DIR_CSV + "/results_SCANB.csv")
+    
+    #parser.add_argument('--illustrate', action='store_true', help='illustrate survival curves')
+    #parser.add_argument('-data', type=str, help='raw gene expression data', default=OUTPUT_DIR_CSV + "Data/SCANB_groups_valid.csv")
     args = parser.parse_args()
     #
 
@@ -377,6 +402,12 @@ def main():
     df_disp.to_csv(args.o)
     logging.info(f"Saved table in {args.o}")
 
+    for gene_name in SELECTED_GENES:
+        df_pvals = get_pvals_for_gene(resi_disp, gene_name)
+        df_pvals.to_csv(f"{OUTPUT_DIR_CSV}{gene_name}_pvals.csv")
+        logging.info(f"Saved p-values for {gene_name} in {OUTPUT_DIR_CSV}{gene_name}_pvals.csv")
+
+    
 if __name__ == '__main__':
     main()
 
