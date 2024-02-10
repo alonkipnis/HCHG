@@ -4,10 +4,6 @@
 # !pip3 install lifelines
 # !pip3 install multiHGtest
 
-from test_gene_expression import two_groups_table
-from illustrate_gene_expression_survival_curves import plot_survival_curve_time2event
-from multiHGtest import testHG_dashboard
-
 import pandas as pd
 import numpy as np
 
@@ -16,12 +12,13 @@ import matplotlib as mpl
 plt.rcParams['figure.figsize'] =  [8, 6]
 mpl.style.use('ggplot')
 
-from survival import evaluate_test_stats
 import logging
 from tqdm import tqdm
 
 from SurvSet.data import SurvLoader
 
+
+CRITVALS_FILENAME = "survset_critvals.json"
 
 MIN_MAX_EVENTS = 15
 
@@ -30,7 +27,7 @@ FRAC_LOW = 0.1  # don't split if less than FRAC_LOW fraction of the samples are 
 FRAC_HIGH = 1-FRAC_LOW
 
 SIG_LEVEL = 0.05
-GET_CRITVALS = True
+GET_CRIEVAL_CRITVALS = False
 nMonte = 10
 
 
@@ -90,16 +87,27 @@ def simulate_null(data, nMonte, stbl=True, T=0, randomize=False):
 def simulate_critvals(data, nMonte):
         df0 = pd.concat(simulate_null(data, nMonte))
         return df0.quantile(1 - SIG_LEVEL)
-        
-critvals = {}
-for ds_name in lo_datasets:
-        print(f"Simulating for dataset {ds_name}...")
-        df, ref = loader.load_dataset(ds_name=ds_name).values()
-        critvals[ds_name] = simulate_critvals(df, nMonte).to_dict()
+
 
 import json
-with open("survset_critvals.json", 'w', encoding='utf-8') as f:
-    json.dump(critvals, f, ensure_ascii=False, indent=4)
+
+
+logging.info("Searching for critical values in ", CRITVALS_FILENAME)
+
+try :
+    with open(CRITVALS_FILENAME, 'r') as fp:
+        critvals = json.load(fp)
+except:
+    logging.info("Critical values not found, simulating...")
+    assert EVAL_CRITVALS == True, "Need to allow simulation of critical values"
+    critvals = {}
+    for ds_name in lo_datasets:
+            print(f"Simulating for dataset {ds_name}...")
+            df, ref = loader.load_dataset(ds_name=ds_name).values()
+            critvals[ds_name] = simulate_critvals(df, nMonte).to_dict()
+    logging.info("Saving critical values to ", CRITVALS_FILENAME)
+    with open(CRITVALS_FILENAME, 'w', encoding='utf-8') as f:
+        json.dump(critvals, f, ensure_ascii=False, indent=4)
 
 
 lo_stats = ['hc_greater', 'log_rank_greater', 'log_rank_pval_greater',
@@ -145,45 +153,52 @@ for stat_name in lo_stats:
 
 # %%
 logging.info("Report on the number of discoveries in every group")
-group1 = ['hc_greater', 'hc_greater_rev']
-to_exclude = ['fisher_greater', 'min_p_greater', 'fisher_greater_rev', 'min_p_greater_rev',
-              'log_rank_pval_greater', 'log_rank_pval_greater_rev'
-              #'logrank_lifelines_fleming-harrington55', 'logrank_lifelines_fleming-harrington11', 'logrank_lifelines_fleming-harrington01'
-              ]
-group2 = [s for s in lo_stats if s not in (group1 + to_exclude)]
-group_neutral = [s for s in lo_stats if s not in (group1 + group2 + to_exclude)]
 
-discoveries1 = discoveries['hc_greater'] & False
-discoveries2 = discoveries['hc_greater'] & False
-discoveriesN = discoveries['hc_greater'] & False
+for group1 in [['hc_greater', 'hc_greater_rev'], ['logrank_lifelines_None'], ['logrank_lifelines_wilcoxon'], ['logrank_lifelines_wilcoxon'],
+               ['logrank_lifelines_tarone-ware'], ['logrank_lifelines_peto']]:
+    print(f"\t{group1}")    
+    to_exclude = ['fisher_greater', 'min_p_greater', 'fisher_greater_rev', 'min_p_greater_rev',
+                'log_rank_pval_greater', 'log_rank_pval_greater_rev',
+                'logrank_lifelines_fleming-harrington55',
+                'logrank_lifelines_fleming-harrington11',
+                'logrank_lifelines_fleming-harrington01',
+                'log_rank_greater', 'log_rank_greater_rev',
+                ]
 
-for sn in group1:
-    discoveries1 = discoveries1 | discoveries[sn]
-     
-for sn in group2:
-    discoveries2 = discoveries2 | discoveries[sn]
+    group2 = [s for s in lo_stats if s not in (group1 + to_exclude)]
+    print(f"\t{group2}")
+    #group2 = ['logrank_lifelines_None', 'logrank_lifelines_wilcoxon', 'logrank_lifelines_tarone-ware', 'logrank_lifelines_peto', 
+            #'logrank_lifelines_fleming-harrington55', 'logrank_lifelines_fleming-harrington11', 'logrank_lifelines_fleming-harrington01'
+    #]
+    group_neutral = [s for s in lo_stats if s not in (group1 + group2 + to_exclude)]
 
-for sn in group_neutral:
-    discoveriesN = discoveriesN | discoveries[sn]
+    discoveries1 = [False] * len(df_res)
+    discoveries2 = [False] * len(df_res)
 
+    for sn in group1:
+        discoveries1 = discoveries1 | discoveries[sn]
+        
+    for sn in group2:
+        discoveries2 = discoveries2 | discoveries[sn]
 
-print("Group1: ", group1)
-print("Group2: ", group2)
-print("Group N: ", group_neutral)
-print("Neither: ", to_exclude)
-
-print("Number of discoveries in Group1: ", np.sum(discoveries1))
-print("Number of discoveries in Group2: ", np.sum(discoveries2))
-print("Number of discoveries in GroupN: ", np.sum(discoveriesN))
-print("Number of joint 1&2 discoveries: ", np.sum(discoveries1 & discoveries2))
-print("Number of unique discoveries 1: ", np.sum(discoveries1 & ~discoveries2 & ~discoveriesN))
-print("Number of unique discoveries 2: ", np.sum(discoveries2 & ~discoveries1 & ~discoveriesN))
-
-print("Discovered by Group1 but not Group2: (<dataset>:<factor>:<value>)")
-print(df_res['name'][discoveries1 & ~discoveries2].values)
-
-print("Discovered by Group2 but not Group1: (<dataset>:<factor>:<value>)")
-print(df_res['name'][discoveries2 & ~discoveries1].values)
+    # for sn in group_neutral:
+    #     discoveriesN = discoveriesN | discoveries[sn]
 
 
+    print("Group1: ", group1)
+    print("Group2: ", group2)
+    print("Group N: ", group_neutral)
+    print("Neither: ", to_exclude)
+
+    print("Number of discoveries in Group1: ", np.sum(discoveries1))
+    print("Number of discoveries in Group2: ", np.sum(discoveries2))
+    print("Number of joint 1&2 discoveries: ", np.sum(discoveries1 & discoveries2))
+    print("Number of unique discoveries 1: ", np.sum(discoveries1 & ~discoveries2))
+    print("Number of unique discoveries 2: ", np.sum(discoveries2 & ~discoveries1))
+
+    #print("Number of unique discoveries 1: ", np.sum(discoveries1 & ~discoveries2 & ~discoveriesN))
+    #print("Number of unique discoveries 2: ", np.sum(discoveries2 & ~discoveries1 & ~discoveriesN))
+    
+    print("Discovered by Group1 but not Group2: (<dataset>:<factor>:<value>)")
+    print(df_res['name'][discoveries1 & ~discoveries2].values)
 

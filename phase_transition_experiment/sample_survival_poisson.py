@@ -48,7 +48,8 @@ def sample_survival_poisson(T, N1, N2, lam0, eps, r):
 
         Nt1[t + 1] = np.maximum(Nt1[t] - O1, 0)
         Nt2[t + 1] = np.maximum(Nt2[t] - O2, 0)
-    return Nt1, Nt2
+    # To get Ot1, use Ot1 = np.maximum(np.append(-np.diff(Nt1), 0), 0)
+    return Nt1, Nt2     
 
 
 def sample_survival_poisson_rand(T, N1, N2, lam0, eps, r):

@@ -1,4 +1,7 @@
 
+"""
+??? unclear what this script does
+"""
 from test_gene_expression import reduce_time_resolution, two_groups_table
 from lifelines.statistics import logrank_test
 import numpy as np

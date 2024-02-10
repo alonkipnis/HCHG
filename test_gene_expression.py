@@ -13,7 +13,6 @@ import argparse
 
 import logging
 
-
 logging.basicConfig(level=logging.INFO)
 from survival import (q95, evaluate_test_stats)
 
@@ -154,10 +153,10 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
     logging.info("Simulating null data by randomizing group assignments in the provided time-to-event data.")
 
     if randomize and (repetitions==1):
-        logging.warning("Randomized statistics are not meaningful with one repetition. Setting repetitions to 100")
+        logging.warning("Randomizing with one repetition is not meaningful. Setting repetitions to 100")
         repetitions = 100
     if not randomize and repetitions > 1:
-        logging.warning("Non-randomized statistics are not meaningful with repetitions. Setting repetitions to 1")
+        logging.warning("There is no  point for many repetitions if not randomizing. Setting repetitions to 1")
         repetitions = 1
 
     def sample_balanced_assignmet(T):
@@ -245,10 +244,9 @@ def main():
     parser.add_argument('-M', type=int, help='repetitions', default=1)
     parser.add_argument('-nMonte', type=int, help='number of Monte-Carlo repetitions for null evalautions', default=10000)
     
-
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
     parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
-    parser.add_argument('--randomize', action='store_true', help='randomized hypergeometric P-values')
+    parser.add_argument('--randomize', action='store_true', help='randomizing hypergeometric P-values')
     args = parser.parse_args()
     #
 
@@ -259,20 +257,20 @@ def main():
     print(f"Reading data from {args.i}...")
     df = pd.read_csv(args.i)
     
+    stbl_str = "stable" if stbl else "not_stable"
     if args.null:
         print("Simulating null...")
         res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize, nMonte=args.nMonte)
         rand_str = "_randomized" if args.randomize else ""
-        stbl_str = "stable" if stbl else "not_stable"
-        fn = f'{args.o}_null_{stbl}_T{T}{rand_str}_rep{args.M}.csv'
+        fn = f'{args.o}_null_{stbl_str}_T{T}{rand_str}_rep{args.M}.csv'
         save_results(res, fn)
     elif args.randomize:
         res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=True)
-        fn = f'{args.o}_{stbl}_T{T}_randomized_rep{args.M}.csv'
+        fn = f'{args.o}_{stbl_str}_T{T}_randomized_rep{args.M}.csv'
         save_results(res, fn)
     else:
         res = main_test_all_genes(df, T, stbl)
-        fn = f'{args.o}_{stbl}_T{T}.csv'
+        fn = f'{args.o}_{stbl_str}_T{T}.csv'
         save_results(res, fn)
 
 

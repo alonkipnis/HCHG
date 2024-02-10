@@ -1,6 +1,4 @@
 import pandas as pd
-import scipy
-
 from multitest import MultiTest
 from tqdm import tqdm
 
@@ -15,9 +13,22 @@ mpl.style.use('ggplot')
 from phase_transition_experiment.sample_survival_poisson import *
 from lifelines.statistics import logrank_test
 
+from test_konp import evaluate_test_stats_konp
 
 STBL = True
 EPS = 1e-20
+
+
+#from rpy2.robjects.packages import importr
+#konp_test = importr('KONPsurv')
+
+# def konp_testR(times, status, groups):
+#     """
+#     Apply the KONP test from R to survival table. (https://cran.r-project.org/web/packages/KONPsurv/)
+
+#     """
+#     res = konp_test.konp_test(times, status, groups, n_perm=1)
+#     return dict(chisq_test_stat=res[3][0], lr_test_stat=res[4][0],cauchy_test_stat=res[5][0])
 
 
 def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
@@ -78,10 +89,35 @@ def q95(x):
         return pd.Series.quantile(x, .95)
 
 
+def time2event(times, num_events, num_censored, initial_at_risk):
+    """
+    Convert number of events and censored to time-to-event data.
+
+    The number of events and censored at each time point is converted to a list of event times and event status.
+    All events are assumed to occur at the same time as the time point.
+    Events are coded as 1 and censored as 0.
+    All at risk at the last time point are assumed to be censored.
+    """
+
+    assert len(times) == len(num_events) == len(num_censored) 
+    assert initial_at_risk >= np.sum(num_events) + np.sum(num_censored)
+
+    num_censored[-1] = num_censored[-1] + initial_at_risk - np.sum(num_events) - np.sum(num_censored)
+    r_times = []
+    r_status = []
+    for i,t in enumerate(times):
+        ne = num_events[i]
+        nc = num_censored[i]
+        r_times += ([t] * (ne + nc))
+        r_status += ([1] * ne + [0] * nc)
+    
+    return r_times, r_status
+
+
 def logrank_lifeline_survival_table(df_table, **kwrgs):
     """
     Apply the logrank test from lifeline to survival table.
-    To to so, we first need to convert the table to time-to-event representation
+    To do so, we first need to convert the table to time-to-event representation
     by duplicating entries of removed subjects (observed or censored)
     """
 
@@ -103,7 +139,6 @@ def logrank_lifeline_survival_table(df_table, **kwrgs):
     return logrank_test(dft0.index, dft1.index,
                         event_observed_A=dft0['event'], event_observed_B=dft1['event'],
                         **kwrgs)
-
 
 
 def multi_pvals(Nt1, Nt2, Ot1, Ot2, randomize=False, alternative='greater'):
@@ -175,6 +210,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
         res = dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
 
+    N1 = Nt1[0]
+    N2 = Nt2[0]
     Nt1 = np.concatenate([Nt1, [Nt1[-1]-Ot1[-1]]], axis=0)
     Nt2 = np.concatenate([Nt2, [Nt2[-1]-Ot2[-1]]], axis=0)
     Ct1 = (-np.diff(Nt1) - Ot1).astype(int)
@@ -187,9 +224,13 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
         assert np.abs(Ct1).sum() == 0
         assert np.abs(Ct2).sum() == 0
     
-    res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
 
-    return {**res, **res_ll}
+    Ct1[-1] = Ct1[-1] + N1 - Ot1.sum()
+    Ct2[-1] = Ct2[-1] + N2 - Ot2.sum()
+    res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
+    res_konp = evaluate_test_stats_konp(Ot1, Ot2, Ct1, Ct2)
+
+    return {**res, **res_ll, **res_konp}
 
 
 
@@ -232,7 +273,7 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     # if not using stbl=False, then sometimes
     # HC cannot detect a single dominant effect
 
-    hcv = mt.hc()[0]
+    hcv = mt.hc(gamma=0.2)[0]
     fisherv = mt.fisher()[0]
     minpv = mt.minp()
     bjv = mt.berk_jones(gamma=.45)

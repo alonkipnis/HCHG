@@ -5,8 +5,8 @@ results of testing. Both files are obtained via the script 'test_gene_expression
 
 Example usage:
 
-$python3 illustrate_gene_expression_results.py -null results/SCNAB_null_False_T100_M10000.csv
--results ./results/SCNAB_False_T100.csv -o 'table.csv'
+$python3 illustrate_gene_expression_results.py -null results/SCNAB_null_True_T100_M10000.csv
+-results ./results/SCNAB_True_T100.csv -o 'table.csv'
 
 """
 
@@ -23,24 +23,28 @@ mpl.style.use('ggplot')
 from multitest import MultiTest
 from illustrate_gene_expression_survival_curves import illustrate_survival_curve_gene
 
+
 OUTPUT_DIR_FIGS = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/Figs/"
 OUTPUT_DIR_CSV = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/csv/"
-
-#OUTPUT_DIR_FIGS = 'Figs/'
-#OUTPUT_DIR_CSV = 'csv/'
+OUTPUT_DIR_FIGS = 'Figs/'
+OUTPUT_DIR_CSV = 'csv/'
 
 SELECTED_GENES = ['FAM20B', 'PBX1', 'IL10RB', 'MBD3', 'MRPS2', 'ANKLE2', 'DDX5', 'MRAS', 'CLCF1', 'MALL']
 
 STATS_TO_DISPLAY = ['hc_greater', 'log_rank_greater', 'logrank_lifelines_fleming-harrington01',
-                    'logrank_lifelines_tarone-ware', 'logrank_lifelines_peto']
+                    'logrank_lifelines_tarone-ware', 'logrank_lifelines_peto',
+                    'chisq_test_stat','lr_test_stat','cauchy_test_stat']
 
 
 STATS = ['hc_greater', 'hc_greater_rev', 'log_rank_greater', 'log_rank_greater_rev',
          'logrank_lifelines_None', 'logrank_lifelines_None_rev',
         'logrank_lifelines_wilcoxon', 'logrank_lifelines_wilcoxon_rev',
         'logrank_lifelines_tarone-ware', 'logrank_lifelines_tarone-ware_rev',
-        'logrank_lifelines_peto', 'logrank_lifelines_peto_rev',
-        'logrank_lifelines_fleming-harrington01', 'logrank_lifelines_fleming-harrington01_rev',
+        'logrank_lifelines_peto', 'logrank_lifelines_peto_rev', 
+        'chisq_test_stat', 'chisq_test_stat_rev',
+        'lr_test_stat_rev','lr_test_stat',
+        'cauchy_test_stat_rev', 'cauchy_test_stat'
+       # 'logrank_lifelines_fleming-harrington01', 'logrank_lifelines_fleming-harrington01_rev',
         #'logrank_lifelines_fleming-harrington10', 'logrank_lifelines_fleming-harrington10_rev'
         ]
 
@@ -58,6 +62,9 @@ NAME_NEAT = {'hc_greater': "HCHG",
         'logrank_lifelines_peto_rev': 'Peto-Peto',
         'logrank_lifelines_wilcoxon': 'Gehan-Wilcoxon',
         'logrank_lifelines_wilcoxon_rev': 'Gehan-Wilcoxon',
+        'chisq_test_stat': 'KONP Chisq',
+        'lr_test_stat_rev': 'KONP Log-rank',
+        'cauchy_test_stat_rev': 'KONP Cauchy-Comb',
         'others': 'Others'
         }
 
@@ -115,7 +122,7 @@ def find_pvalues_of_stats_results(df1, df0, stat_name):
     Find the p-values of the statistics in df1 with respect to the null distribution in df0
 
     """
-    val0 =df0[stat_name]
+    val0 = df0[stat_name]
     def stat0(x):
         return np.mean(val0 > x)
 
@@ -210,7 +217,7 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
 
 
     # all others
-    STATS_no_HC = [s for s in STATS if 'hc_' not in s]
+    STATS_no_HC = [s for s in STATS if 'hc_' not in s and s in res.columns]
     s1 = set(names[get_discoverable_by_statistic(res, 'hc_greater', sig_level, side='either')])
     s2 = set(names[get_discoverable_by_many_statistics(res, STATS_no_HC, sig_level, side='either')])
 
@@ -253,10 +260,8 @@ def report_results_venn_diagram(res:pd.DataFrame, sig_level=0.05):
     plt.close()
 
 
-
 def report_results_HC_logrank(res:pd.DataFrame, sig_level=0.05):
-
-    log_rank_non = (res[f'log_rank_greater_pvalue'] > sig_level) & (res[f'log_rank_greater_rev_pvalue'] > sig_level)
+    log_rank_none = (res[f'log_rank_greater_pvalue'] > sig_level) & (res[f'log_rank_greater_rev_pvalue'] > sig_level)
     log_rank_1side_strict = get_discoverable_by_statistic(res, 'log_rank_greater', sig_level, side='strict')
     log_rank_1side_either = get_discoverable_by_statistic(res, 'log_rank_greater', sig_level, side='either')
 
@@ -305,7 +310,7 @@ def report_discoveries_all_stats_multiple_siglevels(res:pd.DataFrame):
     sig_levels = [0.05, 0.01, 0.001, 0.0001]
     for sig_level in sig_levels:
         for stn in STATS:
-            if "_rev" not in stn:
+            if "_rev" not in stn and stn in res.columns:  # if stats is not a reversed test
                 sig = sig_level
                 nod = np.sum( get_discoverable_by_statistic(res, stn, sig_level=sig, side='either') )
                 results.append({'sig_level': sig_level, 'number of discoveries': nod, 'stat_name': stn})
@@ -382,12 +387,19 @@ def main():
         ['log_rank_greater', 
          'hc_greater', 
          'hc_greater_rev', 
-         'log_rank_greater_rev'])
+         'log_rank_greater_rev',
+         'chisq_test_stat',
+         'lr_test_stat',
+        'cauchy_test_stat'
+         ])
     logging.info(f"Critical test values at significance level {sig_level} from simulated null data:")
     logging.info(crit_vals)
     
     for stat_name in STATS:
-        res.loc[:, stat_name + '_pvalue'] = find_pvalues_of_stats_results(res, df0, stat_name)
+        if stat_name in res.columns:
+            res.loc[:, stat_name + '_pvalue'] = find_pvalues_of_stats_results(res, df0, stat_name)
+        else:
+            logging.warning(f"Could not find {stat_name} in results. Skipping.")
 
     print(report_discoveries_all_stats_multiple_siglevels(res))
     
