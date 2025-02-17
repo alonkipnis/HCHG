@@ -14,6 +14,7 @@ $python3 illustrate_gene_expression_survival_curves.py -data Data/SCANB_groups_v
 -outdir Figs/
 
 """
+GAMMA = 0.2
 
 import argparse
 import logging
@@ -50,7 +51,7 @@ def load_data(data_file_path):
     return df
 
 
-def find_changes(pvals, gamma=.5, stbl=True):
+def find_changes(pvals, gamma=GAMMA, stbl=True):
     mt = MultiTest(pvals[pvals <= 1], stbl=stbl)
     _, hct = mt.hc(gamma=gamma)
     return pvals <= hct
@@ -70,8 +71,7 @@ def plot_survival_curve_time2event(df):
     plt.legend(fontsize=18)
 
 
-def illustrate_survival_curve_time2event(df_time2event,
-                                        stbl=True, # type of HC stat
+def illustrate_survival_curve_time2event(df_time2event, stbl=True,
                                show_HCT=True, randomize_HC=False,
                                show_stats_in_title=True, flip_sides=False):
         
@@ -95,14 +95,16 @@ def illustrate_survival_curve_time2event(df_time2event,
         
     plot_survival_curve_time2event(df_time2event)
 
-    dfg, statsHG = testHG_dashboard(Nt1, Nt2, Ot1, Ot2, 
+    dfg, statsHG = testHG_dashboard(Nt1, Nt2, Ot1, Ot2, gamma=GAMMA,
                                     randomize=False, stbl=True, alternative='greater')
-
-    np.testing.assert_almost_equal(statsHG['hc'], stats['hc_greater'])
+    try:
+        np.testing.assert_almost_equal(statsHG['hc'], stats['hc_greater'])
+    except:
+        import pdb; pdb.set_trace()
     
     df_disp = dfg[dfg.HCT]
     if show_HCT:
-        xvals = dfg.index[:len(df_disp)]
+        xvals = df_disp.index.tolist()
         yvals = np.ones_like(xvals)
         plt.bar(xvals, yvals, color='k', alpha=.2, width=.5)
         
@@ -128,9 +130,9 @@ def illustrate_survival_curve_gene(df, gene_name, T):
 
     dfp.index.name = 'time'
 
-    df_HCT = df_HCT.filter(['at_risk X', 'at_risk Y', 'observed X', 'observed Y', 'pvalue'])
+    df_HCT = df_HCT.filter(['at_risk:0', 'at_risk:1', 'observed:0', 'observed:1', 'pvalue'])
     df_HCT.index = df_HCT.index.astype(int)
-    for l in ['at_risk X', 'at_risk Y', 'observed X', 'observed Y']:
+    for l in ['at_risk:0', 'at_risk:1', 'observed:0', 'observed:1']:
         df_HCT[l] = df_HCT[l].astype(int)
     
     return dfp, df_HCT

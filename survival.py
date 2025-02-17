@@ -15,21 +15,8 @@ from lifelines.statistics import logrank_test
 
 from test_konp import evaluate_test_stats_konp
 
+GAMMA = 0.2  # Should be 0.2
 STBL = True
-EPS = 1e-20
-
-
-#from rpy2.robjects.packages import importr
-#konp_test = importr('KONPsurv')
-
-# def konp_testR(times, status, groups):
-#     """
-#     Apply the KONP test from R to survival table. (https://cran.r-project.org/web/packages/KONPsurv/)
-
-#     """
-#     res = konp_test.konp_test(times, status, groups, n_perm=1)
-#     return dict(chisq_test_stat=res[3][0], lr_test_stat=res[4][0],cauchy_test_stat=res[5][0])
-
 
 def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
     """
@@ -74,6 +61,7 @@ def log_rank_test(Nt1, Nt2, Ot1, Ot2, alternative='two-sided'):
         pval = norm.cdf(z)
     else:
         pval = 2 * norm.cdf(-np.abs(z))
+        z = np.abs(z)  # change to z ** 2 to match lifelines version
 
     # alternative only affecting pval, not z score
     return z, pval
@@ -136,7 +124,12 @@ def logrank_lifeline_survival_table(df_table, **kwrgs):
     dft0 = table2time(dfg0.rename(columns={'observed:0': 'observed', 'censored:0': 'censored'}))
     dft1 = table2time(dfg1.rename(columns={'observed:1': 'observed', 'censored:1': 'censored'}))
 
-    return logrank_test(dft0.index, dft1.index,
+    if kwrgs['weightings'] == 'fleming-harrington' and kwrgs['p'] == 0.5 and kwrgs['q'] == 0.5:
+        return logrank_test(dft0.index, dft1.index,
+                        event_observed_A=dft0['event'], event_observed_B=dft1['event'],
+                        weighting='fleming-harrington', p=1, q=0)
+    else:
+        return logrank_test(dft0.index, dft1.index,
                         event_observed_A=dft0['event'], event_observed_B=dft1['event'],
                         **kwrgs)
 
@@ -185,6 +178,8 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
     Fisher combination test
     minimum P-value
     Berk-Jones
+    life-line log-rank with several weighing functions
+    konp test
     """
 
     randomize = kwargs.get('randomize', False)
@@ -209,13 +204,15 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
                                  stbl=stbl, randomize=randomize, discard_ones=discard_ones)
         res = dict([(k + '_' + alternative, r[k]) for k in r.keys()])
 
-
+    # The following is for using the lifelines package
     N1 = Nt1[0]
     N2 = Nt2[0]
     Nt1 = np.concatenate([Nt1, [Nt1[-1]-Ot1[-1]]], axis=0)
     Nt2 = np.concatenate([Nt2, [Nt2[-1]-Ot2[-1]]], axis=0)
     Ct1 = (-np.diff(Nt1) - Ot1).astype(int)
     Ct2 = (-np.diff(Nt2) - Ot2).astype(int)
+    Ct1[-1] = Ct1[-1] + N1 - Ot1.sum()
+    Ct2[-1] = Ct2[-1] + N2 - Ot2.sum()
 
     assert np.all(Ct1 >= 0)
     assert np.all(Ct2 >= 0)
@@ -224,18 +221,16 @@ def evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, **kwargs):
         assert np.abs(Ct1).sum() == 0
         assert np.abs(Ct2).sum() == 0
     
-
-    Ct1[-1] = Ct1[-1] + N1 - Ot1.sum()
-    Ct2[-1] = Ct2[-1] + N2 - Ot2.sum()
     res_ll = evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2)
     res_konp = evaluate_test_stats_konp(Ot1, Ot2, Ct1, Ct2)
+    # add konp_ prefix to the keys:
+    res_konp = {f'konp_{k}': v for k, v in res_konp.items()}
 
     return {**res, **res_ll, **res_konp}
 
 
-
 def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
-                         randomize=False,
+                         randomize=False, pvals_alternative='greater',
                          stbl=True, discard_ones=False):
     """
     Evaluate many tests for comparing the lists Nt1 and Nt2
@@ -265,23 +260,44 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
     minpv = []
     bjv = []
     
-    pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative=alternative,
-                        randomize=randomize)
-    if discard_ones:
-        pvals = pvals[pvals < 1]
+    pvals = multi_pvals(Nt1, Nt2, Ot1, Ot2, alternative=pvals_alternative,
+                        randomize=randomize) # here alternative is always greater, not according to 
+                                             # the input argument
     mt = MultiTest(pvals, stbl=stbl)
-    # if not using stbl=False, then sometimes
-    # HC cannot detect a single dominant effect
+    mt_nobstbl = MultiTest(pvals, stbl=False)
+    
 
-    hcv = mt.hc(gamma=0.2)[0]
+    hcv = mt.hc(gamma=GAMMA)[0]
+    hcv_nobstbl = mt_nobstbl.hc(gamma=GAMMA)[0]
     fisherv = mt.fisher()[0]
     minpv = mt.minp()
-    bjv = mt.berk_jones(gamma=.45)
+    bjv = mt.berkjones(gamma=GAMMA)
     
-    test_results['hc'] = hcv
-    test_results['fisher'] = fisherv
-    test_results['min_p'] = minpv
-    test_results['berk_jones'] = bjv
+    
+    if alternative == 'two-sided':
+        pvals_rev = multi_pvals(Nt2, Nt1, Ot2, Ot1, alternative=pvals_alternative,
+                        randomize=randomize) # here alternative may be 'greater' or 'less'
+        if discard_ones:
+            pvals_rev = pvals_rev[pvals_rev < 1]
+
+        mt_rev = MultiTest(pvals_rev, stbl=stbl) # HC with stbl=True may somtimes fail to detect a single dominant effect
+        hcv_rev = mt_rev.hc(gamma=GAMMA)[0]
+        fisher_rev = mt_rev.fisher()[0]
+        minpv_rev = mt_rev.minp()
+        bjv_rev = mt_rev.berkjones(gamma=GAMMA)
+        test_results['hc'] = max(hcv, hcv_rev)
+        test_results['hc_nobstbl'] = max(hcv_nobstbl, hcv_rev)
+        test_results['fisher'] = max(fisherv, fisher_rev)
+        test_results['min_p'] = max(minpv, minpv_rev)
+        test_results['berkjones'] = max(bjv, bjv_rev)
+
+    else:
+        test_results['hc'] = hcv
+        test_results['hc_nobstbl'] = hcv_nobstbl
+        test_results['fisher'] = fisherv
+        test_results['min_p'] = minpv
+        test_results['berkjones'] = bjv
+        
     
     return test_results
 
@@ -289,7 +305,11 @@ def _evaluate_test_stats(Nt1, Nt2, Ot1, Ot2, alternative,
 def evaluate_test_stats_lifeline(Ot1, Ot2, Ct1, Ct2):
     res = {}
     dfg = pd.DataFrame({'observed:0' : Ot1, 'observed:1': Ot2, 'censored:0': Ct1, 'censored:1': Ct2})
-    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 'fleming-harrington55', 'fleming-harrington11', 'fleming-harrington01']
+    weightings = [None, 'wilcoxon', 'tarone-ware', 'peto', 
+                  'fleming-harrington55',
+                'fleming-harrington11',
+                'fleming-harrington01'
+                ]
     for wt in weightings:
         if wt == 'fleming-harrington11':
             res[f'logrank_lifelines_{wt}'] = logrank_lifeline_survival_table(dfg, weightings='fleming-harrington', p=1, q=1).test_statistic

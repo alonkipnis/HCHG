@@ -2,19 +2,17 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-
+import time
 from lifelines.utils import group_survival_table_from_events
-
 plt.rcParams['figure.figsize'] = [8, 6]
 mpl.style.use('ggplot')
 from tqdm import tqdm
 import pandas as pd
 import argparse
-
 import logging
 
 logging.basicConfig(level=logging.INFO)
-from survival import (q95, evaluate_test_stats)
+from survival import (q95, evaluate_test_stats, _evaluate_test_stats)
 
 
 def infmean(x):
@@ -83,7 +81,7 @@ def reduce_time_resolution(df, T=None, interval_duration=None):
 
 
 
-def test_gene(data, gene_name, T, stbl=True, randomize=False):
+def test_gene(data, gene_name, T, stbl=True, randomize=False, multitest_only=False):
     """
     Evaluate all test statistics for comparing the survival curves
     for the two groups involving the response of :gene_name:
@@ -99,6 +97,7 @@ def test_gene(data, gene_name, T, stbl=True, randomize=False):
     :stbl:  type of denumerator in HC statisitc
     :randomize:  whether to randomize the Hypergeometric tests or not
     :repetitions:  number of times to randomize the test
+    :multitest_only:  whether to evaluate only tests based on hypergometric P-values such as HCHG
 
     """
     
@@ -108,12 +107,21 @@ def test_gene(data, gene_name, T, stbl=True, randomize=False):
     else:
         dfr = two_groups_table(data, gene_name)
 
-    r = evaluate_test_stats(dfr['at_risk:0'].values, dfr['at_risk:1'].values,
+    if multitest_only:
+        r = _evaluate_test_stats(dfr['at_risk:0'].values, dfr['at_risk:1'].values,
+                                dfr['observed:0'].values, dfr['observed:1'].values, 
+                                stbl=stbl, randomize=randomize, alternative='greater')
+        rrev = _evaluate_test_stats(dfr['at_risk:1'].values, dfr['at_risk:0'].values,
+                                dfr['observed:1'].values, dfr['observed:0'].values,
+                                stbl=stbl, randomize=randomize, alternative='greater')
+    else: 
+        r = evaluate_test_stats(dfr['at_risk:0'].values, dfr['at_risk:1'].values,
                             dfr['observed:0'].values, dfr['observed:1'].values,
                             stbl=stbl, randomize=randomize, alternative='greater')
-    rrev = evaluate_test_stats(dfr['at_risk:1'].values, dfr['at_risk:0'].values,
+        rrev = evaluate_test_stats(dfr['at_risk:1'].values, dfr['at_risk:0'].values,
                             dfr['observed:1'].values, dfr['observed:0'].values,
                             stbl=stbl, randomize=randomize, alternative='greater')
+
 
     r['name'] = gene_name
     rrev['name'] = gene_name
@@ -129,7 +137,8 @@ def test_gene(data, gene_name, T, stbl=True, randomize=False):
 
 
 
-def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=10000):
+def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=10000,
+                       multitest_only=False):
     """
     Generate random partition and Evaluate test statistics. 
 
@@ -142,7 +151,9 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
         :T:    number of time instances to consolidate the data to
         :stbl: parameter for type of HC to use
         :randomize:  whether to randomize P-values
-        :rep:  number of repetitions in each sample. Useful for randomized statistics
+        :repetitions:  number of times to randomize the test
+        :nMonte:  number of Monte-Carlo repetitions
+        :multitest_only:  whether to evaluate only tests based on hypergometric P-values such as HCHG
 
     Return:
         :df0:  dataframe with test statistics as columns and genes as rows
@@ -178,7 +189,8 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
         df_test['random_sample'] = df_test['random_sample'].astype(int)
         res_df = pd.DataFrame()
         for _ in range(repetitions):
-            r = test_gene(df_test, 'random_sample', T, stbl=stbl, randomize=randomize)
+            r = test_gene(df_test, 'random_sample', T, stbl=stbl,
+                           randomize=randomize, multitest_only=multitest_only)
             res_df = pd.concat([res_df, r], axis=0)
         res_df['itr'] = itr
         df0 = pd.concat([df0, res_df])
@@ -186,9 +198,9 @@ def simulate_null_data(df, T, stbl=True, repetitions=1, randomize=False, nMonte=
     return df0
 
 
-def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False):
+def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False, multitest_only=False):
+    
     gene_names = [c for c in df.columns if c not in ['Unnamed: 0', 'time', 'event']]
-
     #gene_names = pd.read_csv("genes_detected_by_HC.csv").iloc[:,1].tolist()
 
     logging.info(f"Testing {len(gene_names)} genes...")
@@ -196,7 +208,7 @@ def main_test_all_genes(df, T, stbl=False, repetitions=1, randomize=False):
     res = pd.DataFrame()
     for gene_name in tqdm(gene_names):
         for _ in range(repetitions):
-            r = test_gene(df, gene_name, T, stbl=stbl, randomize=randomize)
+            r = test_gene(df, gene_name, T, stbl=stbl, randomize=randomize, multitest_only=multitest_only)
             res = pd.concat([res, r], axis=0)
     return res
 
@@ -234,7 +246,12 @@ def report_results(df0, res):
 
 def save_results(res, fn):
     print(f"Saving to {fn}")
-    pd.DataFrame(res).to_csv(fn)
+    try:
+        pd.DataFrame(res).to_csv(fn)
+    except:
+        logging.error(f"Failed to save results to {fn}")
+        logging.warning("Saving to temp.csv")
+        pd.DataFrame(res).to_csv("temp.csv")
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze SCANB')
@@ -245,31 +262,39 @@ def main():
     parser.add_argument('-nMonte', type=int, help='number of Monte-Carlo repetitions for null evalautions', default=10000)
     
     parser.add_argument('--null', action='store_true', help='simulate null data (random group assignments)')
-    parser.add_argument('--stbl', action='store_true', help='type of HC denumonator')
+    parser.add_argument('--multitest-only', action='store_true', help='simulate null data (random group assignments) of multitest statistic only')
+    parser.add_argument('--nonstbl', action='store_true', help='type of HC denumonator')
     parser.add_argument('--randomize', action='store_true', help='randomizing hypergeometric P-values')
     args = parser.parse_args()
     #
 
     T = args.T
-    stbl = args.stbl
+    stbl = not args.nonstbl
     print("stbl = ", stbl)
 
     print(f"Reading data from {args.i}...")
     df = pd.read_csv(args.i)
     
     stbl_str = "stable" if stbl else "not_stable"
+    rand_str = "_randomized" if args.randomize else ""
+    res = None
+    multitest_only = args.multitest_only
+
     if args.null:
         print("Simulating null...")
-        res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize, nMonte=args.nMonte)
-        rand_str = "_randomized" if args.randomize else ""
-        fn = f'{args.o}_null_{stbl_str}_T{T}{rand_str}_rep{args.M}.csv'
+        fn = f'{args.o}_null_{stbl_str}_T{T}{rand_str}_rep{args.M}_{hash(time.time())}.csv'
+        print(f"Will save results to {fn}")
+        res = simulate_null_data(df, T, stbl=stbl, repetitions=args.M, randomize = args.randomize,
+                                  nMonte=args.nMonte, multitest_only=multitest_only)
         save_results(res, fn)
     elif args.randomize:
-        res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=True)
+        res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=True, 
+                                  multitest_only=multitest_only)
         fn = f'{args.o}_{stbl_str}_T{T}_randomized_rep{args.M}.csv'
         save_results(res, fn)
     else:
-        res = main_test_all_genes(df, T, stbl)
+        res = main_test_all_genes(df, T, stbl, repetitions=args.M, randomize=False, 
+                                  multitest_only=multitest_only)
         fn = f'{args.o}_{stbl_str}_T{T}.csv'
         save_results(res, fn)
 
