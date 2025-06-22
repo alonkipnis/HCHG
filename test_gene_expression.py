@@ -255,7 +255,7 @@ def save_results(res, fn):
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze SCANB')
-    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups_valid.csv')
+    parser.add_argument('-i', type=str, help='input file', default='./Data/SCANB_groups_valid_KS_censored.csv')
     parser.add_argument('-o', type=str, help='output file', default='SCANB')
     parser.add_argument('-T', type=int, help='number of instances', default=100)
     parser.add_argument('-M', type=int, help='repetitions', default=1)
