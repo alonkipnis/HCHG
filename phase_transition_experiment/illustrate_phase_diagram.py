@@ -37,7 +37,8 @@ def illustrate_phase_diagrams(df1, df0, out_filename='phase_diagram'):
     """
 
     params = ['itr', 'T', 'N1', 'N2' 'r', 'beta']
-    tests = ['log_rank', 'hc', 'min_p', 'berk_jones', 'wilcoxon', 'fisher']
+    # Match evaluate_test_stats keys; omit lifelines-dependent ones for portability
+    tests = ['log_rank', 'hc', 'min_p', 'berkjones', 'fisher']
     tests_vars = [c for c in df0.columns if c not in params and 'Unnamed' not in c]
 
     global_params = ['T', 'N1', 'N2']
@@ -85,7 +86,7 @@ def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-i', type=str, help='results file', default='results.csv')
     parser.add_argument('-n', type=str, help='null data', default="")
-    parser.add_argument('-o', type=str, help='output dir', default='../Figs/')
+    parser.add_argument('-o', type=str, help='output dir or filename prefix', default='Figs/')
     args = parser.parse_args()
     #
     logging.info(f"Reading from {args.i}...")
@@ -102,11 +103,9 @@ def main():
     df0 = pd.read_csv(results_null_file).filter(regex='^((?!Unnamed).)*$')
     df0 = df0[df0.r == 0]
 
-    illustrate_phase_diagrams(df1, df0, out_filename=args.o+'phase_diagram')
+    illustrate_phase_diagrams(df1, df0, out_filename=(args.o if args.o.endswith('/') else args.o + '_') + 'phase_diagram')
 
 if __name__ == '__main__':
     main()
-
-
 
 

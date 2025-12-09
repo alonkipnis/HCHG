@@ -1,0 +1,46 @@
+names:  # order must match evaluate_rare_and_weak
+  - 'itr'
+  - 'T'
+  - 'N1'
+  - 'N2'
+  - 'lam0'
+  - 'beta'
+  - 'r'
+
+itr:
+  type: 'range(int)'
+  min: 1
+  max: 2
+
+r:
+  type: 'list(float)'
+  values:
+    - 0.0
+    - 0.8
+
+beta:
+  type: 'list(float)'
+  values:
+    - 0.6
+    - 0.8
+
+T:
+  type: 'list(int)'
+  values:
+    - 100
+
+N1:
+  type: 'list(int)'
+  values:
+    - 1000
+
+N2:
+  type: 'list(int)'
+  values:
+    - 1000
+
+lam0:
+  type: 'list(float)'
+  values:
+    - 1.0
+

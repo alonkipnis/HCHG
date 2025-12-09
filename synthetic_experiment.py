@@ -11,7 +11,7 @@ import sys
 sys.path.append('phase_transition_experiment/')
 from sample_survival_poisson import sample_survival_poisson
 
-seed = 0
+seed = 2
 np.random.seed(seed)
 
 # %% [markdown]
@@ -73,7 +73,7 @@ df0 = pd.read_csv(fn, index_col=0)
 
 
 beta = .7
-r = 1.2
+r = 1.3
 nMonte = 1000
 alternative = 'two-sided'
 params=dict(alternative=alternative, beta=beta,r=r, T = T, N1 = N1, N2 = N2, lam0 = lam0, nMonte = nMonte)
@@ -141,7 +141,8 @@ print(rate_dicoveries)
 print("Latex table:")
 df_res = pd.DataFrame.from_dict(rate_dicoveries, orient='index').sort_values([0],ascending=False)
 print(df_res.to_latex())
-df_res.T.to_csv("results/synthetic_experiment_rate_discoveries.csv")
+hash_values = hash_parameters(params)
+df_res.T.to_csv(f"results/synthetic_experiment_rate_discoveries_{hash_values}.csv")
 
 
 

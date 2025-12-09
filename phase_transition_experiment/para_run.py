@@ -15,7 +15,11 @@ import sys
 
 sys.path.append("../")
 
-from survival import evaluate_rare_and_weak as evaluate
+try:
+    from survival.survival import evaluate_rare_and_weak as evaluate
+except Exception:
+    # Fallback for running outside package context
+    from survival import evaluate_rare_and_weak as evaluate
 from configurations import load_configurations
 
 

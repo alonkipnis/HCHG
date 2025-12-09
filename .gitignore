@@ -105,6 +105,12 @@ logs/**
 # ignore Dask folder
 dask*
 
+# Archive and local env
+archive/**
+env/
+.ipynb_checkpoints/
+Figs/**
+
 ##########################
 # Common files
 

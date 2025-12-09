@@ -26,10 +26,9 @@ from multitest import MultiTest
 from matplotlib_venn import venn2, venn3
 
 
-OUTPUT_DIR_FIGS = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/Figs/"
-OUTPUT_DIR_CSV = "/Users/kipnisal/Dropbox/Apps/Overleaf/Survival Analysis with Sensitivity to Possible Rare and Weak Differences/csv/"
-#OUTPUT_DIR_FIGS = 'Figs/'
-#OUTPUT_DIR_CSV = 'csv/'
+# Default local output directories used by README workflows
+OUTPUT_DIR_FIGS = 'Figs/'
+OUTPUT_DIR_CSV = 'csv/'
 
 # We hand-picked a few genes to illustrate 
 SELECTED_GENES = ['FAM20B', 'PBX1', 'IL10RB', 'MBD3', 'MRPS2',
@@ -382,8 +381,8 @@ def main():
     parser = argparse.ArgumentParser(description='Illustrate Results')
     parser.add_argument('-null', type=str, help='null data file (csv)')
     parser.add_argument('-results', type=str, help='results file (csv)')
-    parser.add_argument('-o', type=str, help='output table', default=OUTPUT_DIR_CSV + "/SCANB_analyzed_results.csv")
-    parser.add_argument('-valid', type=str, help='valid genese information', default="Data/SCANB_groups_valid_KS_censor.csv")
+    parser.add_argument('-o', type=str, help='output table', default=OUTPUT_DIR_CSV + "SCANB_analyzed_results.csv")
+    parser.add_argument('-valid', type=str, help='valid genese information', default="Data/SCANB_groups_valid_KS_censored.csv")
     
     #parser.add_argument('--illustrate', action='store_true', help='illustrate survival curves')
     #parser.add_argument('-data', type=str, help='raw gene expression data', default=OUTPUT_DIR_CSV + "Data/SCANB_groups_valid.csv")
@@ -469,4 +468,3 @@ def main():
     
 if __name__ == '__main__':
     main()
-
