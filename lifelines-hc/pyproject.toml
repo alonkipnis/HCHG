@@ -40,7 +40,8 @@ dev = ["pytest"]
 app = ["streamlit", "matplotlib"]
 
 [project.urls]
-Homepage = "https://github.com/alonkipnis/survival"
+Homepage = "https://github.com/alonkipnis/HCHG"
+Paper = "https://academic.oup.com/biomet/article/113/1/asaf075/8307530"
 
 [tool.setuptools.packages.find]
 include = ["lifelines_hc*"]
