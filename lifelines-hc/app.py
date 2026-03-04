@@ -136,7 +136,7 @@ st.sidebar.subheader("HC test settings")
 
 n_intervals = st.sidebar.slider(
     "Intervals to pool (`n_intervals_to_pool`)",
-    min_value=10, max_value=2000, value=100, step=10,
+    min_value=10, max_value=2000, value=70, step=10,
     help="Number of equal-width time bins. Higher = finer resolution.",
 )
 gamma = st.sidebar.slider(
@@ -171,7 +171,8 @@ seed = st.sidebar.number_input("Random seed", min_value=0, value=42, step=1)
 # ── Main panel ───────────────────────────────────────────────────────────
 
 st.title("Higher Criticism for Survival Analysis with Rare, Non-Proportional Hazards Departures")
-st.caption(
+st.markdown("**Instructions:** Select parameters on the sidebar to the left.")
+st.caption("Based on the paper: "
     "Kipnis, A., Galili, B., and Yakhini, Z. "
     "[*Higher criticism for rare and weak non-proportional hazard deviations "
     "in survival analysis.*](https://academic.oup.com/biomet/article/113/1/asaf075/8307530) "
@@ -272,7 +273,7 @@ st.subheader("Per-interval results")
 
 n_suspected = df_dev["suspected"].sum()
 st.markdown(
-    f"**{n_suspected}** of **{len(df_dev)}** intervals flagged as suspected "
+    f"**{n_suspected}** of **{len(df_dev)}** intervals flagged as suspected as having increased hazard from {label_A} to {label_B}"
     f"(HC threshold = {df_dev['hc_threshold'].iloc[0]:.4f})"
 )
 
