@@ -5,4 +5,4 @@ pandas
 lifelines
 multiple-hypothesis-testing>=0.1.01
 multiHGtest>=0.0.3
-./
+./lifelines-hc
