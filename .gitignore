@@ -247,3 +247,4 @@ venv.bak/
 # simulation results and figures
 *.png
 *.csv
+!Data/SCANB_demo.csv
