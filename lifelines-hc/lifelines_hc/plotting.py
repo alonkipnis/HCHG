@@ -119,7 +119,7 @@ class KaplanMeierHCIllustrator:
             left, right = self._parse_interval(label)
             kw = dict(color=shade_color, alpha=shade_alpha, zorder=0)
             if first_span:
-                kw["label"] = "Suspected hazard increase"
+                kw["label"] = "increased hazard suspicion"
                 first_span = False
             ax.axvspan(left, right, **kw)
 

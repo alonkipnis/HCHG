@@ -163,7 +163,7 @@ st.sidebar.subheader("Permutation test")
 
 n_perms = st.sidebar.number_input(
     "Number of permutations",
-    min_value=0, max_value=10000, value=0, step=100,
+    min_value=0, max_value=20000, value=0, step=1000,
     help="Set > 0 to compute a permutation p-value (slower).",
 )
 seed = st.sidebar.number_input("Random seed", min_value=0, value=42, step=1)
@@ -273,7 +273,7 @@ st.subheader("Per-interval results")
 
 n_suspected = df_dev["suspected"].sum()
 st.markdown(
-    f"**{n_suspected}** of **{len(df_dev)}** intervals flagged as suspected as having increased hazard from {label_A} to {label_B}"
+    f"**{n_suspected}** of **{len(df_dev)}** intervals suspected of having greater hazard in {label_B} compared to {label_A}"
     f"(HC threshold = {df_dev['hc_threshold'].iloc[0]:.4f})"
 )
 
