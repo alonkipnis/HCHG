@@ -18,7 +18,6 @@ from lifelines.statistics import logrank_test
 
 from lifelines_hc import (
     higher_criticism_test,
-    berk_jones_test,
     fisher_combination_test,
     min_p_test,
     suspected_deviations,
@@ -51,12 +50,18 @@ def run_all_tests(
     ----------------
     Log-rank (standard)
         Global averaging statistic; powerful for proportional hazards.
-    Log-rank (Gehan-Wilcoxon weight)
-        Puts more weight on early events; powered for early differences.
+    Gehan-Wilcoxon
+        Weights by number at risk; emphasises early events.
+    Tarone-Ware
+        Weights by sqrt(number at risk); intermediate early emphasis.
+    Peto-Prentice
+        Product-limit weight; emphasises early events like Wilcoxon but
+        more robust to tied times.
+    Fleming-Harrington (1,1)
+        Weights by S(t)(1-S(t)); emphasises middle of the follow-up,
+        useful for detecting late effects after an initial null period.
     Higher Criticism (HC)
         Detects rare and weak deviations; optimal for sparse hazard hot-spots.
-    Berk-Jones (BJ)
-        Related goodness-of-fit statistic with HC-like properties.
     Fisher combination
         Combines interval p-values via the chi-squared log-sum.
     Minimum p-value (MinP)
@@ -94,11 +99,17 @@ def run_all_tests(
              p_value=lr.p_value),
     ]
 
-    # Weighted log-rank (Gehan-Wilcoxon) — early-event emphasis
-    lr_wt = logrank_test(T_A, T_B, E_A, E_B, weightings="wilcoxon")
-    rows.append(dict(method="Log-rank (Wilcoxon)",
-                     statistic=lr_wt.test_statistic,
-                     p_value=lr_wt.p_value))
+    # Weighted log-rank variants for non-proportional hazards
+    for method_name, weighting, kw in [
+        ("Gehan-Wilcoxon",          "wilcoxon",          {}),
+        ("Tarone-Ware",             "tarone-ware",        {}),
+        ("Peto-Prentice",           "peto",               {}),
+        ("Fleming-Harrington (1,1)","fleming-harrington", {"p": 1, "q": 1}),
+    ]:
+        r = logrank_test(T_A, T_B, E_A, E_B, weightings=weighting, **kw)
+        rows.append(dict(method=method_name,
+                         statistic=r.test_statistic,
+                         p_value=r.p_value))
 
     shared_kw = dict(
         event_observed_A=E_A, event_observed_B=E_B,
@@ -112,12 +123,6 @@ def run_all_tests(
     rows.append(dict(method="Higher Criticism (HC)",
                      statistic=hc.test_statistic,
                      p_value=hc.p_value))
-
-    # Berk-Jones
-    bj = berk_jones_test(T_A, T_B, **shared_kw)
-    rows.append(dict(method="Berk-Jones",
-                     statistic=bj.test_statistic,
-                     p_value=bj.p_value))
 
     # Fisher
     fi = fisher_combination_test(T_A, T_B, **shared_kw)

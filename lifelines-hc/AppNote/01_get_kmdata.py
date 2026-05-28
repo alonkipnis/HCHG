@@ -1,19 +1,23 @@
 """
-Download and prepare immuno-oncology clinical trial data from the kmdata R package.
+Download and prepare clinical trial data from the kmdata R package.
 
 The kmdata package (github.com/raredd/kmdata) contains reconstructed individual
-patient-level data (IPD) from 153 phase III oncology trials, reverse-engineered
+patient-level data (IPD) from 300+ phase III oncology trials, reverse-engineered
 from published Kaplan-Meier curves using the Guyot algorithm.
 
 Trials downloaded by default:
-  POPLAR     - Atezolizumab vs docetaxel in 2nd-line NSCLC (Fehrenbacher 2016)
-  CheckMate_066  - Nivolumab vs dacarbazine in metastatic melanoma (Robert 2015)
+  Checkmate057_1C  - Nivolumab vs docetaxel, NSCLC PFS (Borghaei 2015 NEJM)
+                     Crossing PFS curves: LR p=0.35, HC p=0.002
+  Checkmate057_1A  - Same trial, OS endpoint (for reference)
+  AZURE_2A         - Zoledronic acid vs control, breast cancer DFS
+                     (Coleman 2011 NEJM); menopause-dependent effect:
+                     LR p=0.30, HC p=0.012
 
 Output:  AppNote/data/<TRIAL>.csv
-Columns: trial-specific, but typically includes time, status/event, arm columns.
+Columns: time, event, arm  (standardised by kmdata)
 
 Usage:
-    python 01_get_kmdata.py [--trials POPLAR CheckMate_066]
+    python 01_get_kmdata.py [--trials Checkmate057_1C AZURE_2A]
 
 Requires:
     R (>= 4.0) accessible as 'Rscript'
@@ -27,11 +31,11 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "data"
 
-# Trials with well-documented delayed treatment effect / crossing survival curves
+# Primary trial: CheckMate 057 PFS (crossing curves, ideal HC showcase)
 DEFAULT_TRIALS = [
-    "POPLAR",         # Atezolizumab vs docetaxel, NSCLC
-    "CheckMate_066",  # Nivolumab vs dacarbazine, melanoma
-    "CheckMate_057",  # Nivolumab vs docetaxel, non-squamous NSCLC
+    "Checkmate057_1C",   # PFS, nivolumab vs docetaxel (LR NS, HC sig)
+    "Checkmate057_1A",   # OS, nivolumab vs docetaxel (both significant)
+    "AZURE_2A",          # DFS, zoledronic acid vs control (LR NS, HC sig)
 ]
 
 R_EXPORT_SCRIPT = r"""
@@ -50,27 +54,32 @@ trials  <- commandArgs(trailingOnly = TRUE)
 out_dir <- trials[length(trials)]   # last arg is output dir
 trials  <- trials[-length(trials)]  # remaining args are trial names
 
-cat(sprintf("kmdata contains %d trials.\n", length(kmdata)))
+all_names <- ls("package:kmdata")
+cat(sprintf("kmdata contains %d datasets.\n", length(all_names)))
 cat(sprintf("Requested: %s\n", paste(trials, collapse = ", ")))
 
 for (trial in trials) {
-  if (!trial %in% names(kmdata)) {
-    # Fuzzy match: try replacing _ with . or space
-    alt <- names(kmdata)[grepl(gsub("_", ".", trial, fixed = TRUE),
-                               names(kmdata), ignore.case = TRUE)]
-    if (length(alt) == 0) {
-      cat(sprintf("[SKIP] '%s' not found in kmdata. Available:\n", trial))
-      cat(paste(sort(names(kmdata)), collapse = "\n"), "\n")
+  # Exact or fuzzy match against package objects
+  matched <- trial
+  if (!matched %in% all_names) {
+    pat <- gsub("_", ".", trial, fixed = TRUE)
+    fuzzy <- all_names[grepl(pat, all_names, ignore.case = TRUE)]
+    if (length(fuzzy) == 0) {
+      cat(sprintf("[SKIP] '%s' not found. Fuzzy search returned nothing.\n", trial))
       next
     }
-    trial <- alt[1]
-    cat(sprintf("[INFO] Using '%s' as match.\n", trial))
+    matched <- fuzzy[1]
+    cat(sprintf("[INFO] Matched '%s' -> '%s'.\n", trial, matched))
   }
-  df   <- kmdata[[trial]]
-  fn   <- file.path(out_dir, paste0(trial, ".csv"))
+  df <- get(matched, envir = asNamespace("kmdata"))
+  if (!is.data.frame(df)) {
+    cat(sprintf("[SKIP] '%s' is not a data frame.\n", matched))
+    next
+  }
+  fn <- file.path(out_dir, paste0(trial, ".csv"))
   write.csv(df, fn, row.names = FALSE)
   cat(sprintf("[OK]   %s -> %s  (%d rows, cols: %s)\n",
-              trial, fn, nrow(df), paste(colnames(df), collapse = ", ")))
+              matched, fn, nrow(df), paste(colnames(df), collapse = ", ")))
 }
 """
 
