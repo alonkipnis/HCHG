@@ -42,15 +42,17 @@ def results_table(csv_path: Path, highlight_method="Higher Criticism (HC)",
         p = row.get("p_value", float("nan"))
         stat = row.get("statistic", float("nan"))
         sig = " ✓" if p < 0.05 else ""
-        bold_open  = "<strong>" if method == highlight_method else ""
-        bold_close = "</strong>" if method == highlight_method else ""
-        cls = ' class="sig"' if p < 0.05 else ""
-        if method == highlight_method:
-            cls = ' class="hc"'
+        is_hc = method == highlight_method
+        cls = ' class="hc"' if is_hc else (' class="sig"' if p < 0.05 else "")
+        # bold applied inside each <td> so <strong> wraps valid inline content
+        b0 = "<strong>" if is_hc else ""
+        b1 = "</strong>" if is_hc else ""
         rows.append(
-            f"<tr{cls}>{bold_open}<td>{method}</td>"
-            f"<td>{stat:8.3f}</td>"
-            f"<td>{p:.4f}{sig}</td>{bold_close}</tr>"
+            f"<tr{cls}>"
+            f"<td>{b0}{method}{b1}</td>"
+            f"<td>{b0}{stat:8.3f}{b1}</td>"
+            f"<td>{b0}{p:.4f}{sig}{b1}</td>"
+            f"</tr>"
         )
     body = "\n".join(rows)
     return f"""
@@ -63,33 +65,6 @@ def results_table(csv_path: Path, highlight_method="Higher Criticism (HC)",
   </tbody>
 </table>"""
 
-
-def scanb_summary_table(csv_path: Path) -> str:
-    """Multi-gene SCAN-B summary table: Log-rank p vs HC p."""
-    df = pd.read_csv(csv_path, index_col=0)
-    genes = df["gene"].unique()
-    rows = []
-    for gene in genes:
-        sub = df[df["gene"] == gene]
-        lr_p = sub.loc["Log-rank", "p_value"] if "Log-rank" in sub.index else float("nan")
-        hc_p = sub.loc["Higher Criticism (HC)", "p_value"] \
-               if "Higher Criticism (HC)" in sub.index else float("nan")
-        hc_wins = hc_p < 0.05 and lr_p >= 0.05
-        cls = ' class="hc"' if hc_wins else ""
-        mark = " ✓" if hc_wins else ""
-        rows.append(
-            f"<tr{cls}><td><em>{gene}</em></td>"
-            f"<td>{lr_p:.3f}</td>"
-            f"<td>{hc_p:.3f}{mark}</td></tr>"
-        )
-    body = "\n".join(rows)
-    return f"""
-<table>
-  <thead>
-    <tr><th>Gene</th><th>Log-rank p</th><th>HC p</th></tr>
-  </thead>
-  <tbody>{body}</tbody>
-</table>"""
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +93,8 @@ table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.92
 th { background: #2c6fad; color: #fff; padding: 6px 12px; text-align: left; }
 td { padding: 5px 12px; border-bottom: 1px solid #eee; }
 tr:last-child td { border-bottom: none; }
-tr.sig td { background: #efffef; }
-tr.hc  td { background: #fff3e0; font-weight: bold; }
+tr.sig td { background: #efffef; color: #222; }
+tr.hc  td { background: #fff3e0; color: #222; font-weight: bold; }
 .verdict { font-size: 1.05em; margin: 0.6em 0; }
 .verdict .label {
   display: inline-block; padding: 2px 10px; border-radius: 4px;
