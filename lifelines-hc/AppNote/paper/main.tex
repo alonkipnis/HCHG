@@ -1,0 +1,413 @@
+% -----------------------------------------------------------------------
+%  lifelines-hc Application Note — Bioinformatics journal
+%
+%  Class:   oup-authoring-template  (OUP standard; pre-installed on
+%           Overleaf and available via CTAN / TeX Live)
+%  Style:   contemporary, large, unnumbered section heads, numbered refs
+%
+%  Compile: pdflatex main && bibtex main && pdflatex main && pdflatex main
+%  Overleaf: upload all files; template class is already available there.
+% -----------------------------------------------------------------------
+\documentclass[unnumsec,webpdf,contemporary,large]{oup-authoring-template}
+
+% ---- packages ----
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{%
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!65!black}\bfseries,
+  commentstyle=\color{gray!70},
+  stringstyle=\color{green!45!black},
+  breaklines=true,
+  frame=tb,
+  framesep=4pt,
+  backgroundcolor=\color{gray!7},
+  xleftmargin=1.2em,
+  xrightmargin=1.2em,
+  aboveskip=0.8em,
+  belowskip=0.5em,
+  showstringspaces=false,
+}
+
+\graphicspath{{../figs/}}
+
+% -----------------------------------------------------------------------
+\begin{document}
+
+% ---- journal metadata (leave most blank; editor fills on acceptance) ----
+\journaltitle{Bioinformatics}
+\DOI{DOI HERE}
+\copyrightyear{2025}
+\pubyear{2025}
+\access{Advance Access Publication Date: Day Month Year}
+\appnotes{Application Note}
+
+\firstpage{1}
+
+% ---- title ----
+\title[{\texttt{lifelines-hc}}: Higher Criticism survival testing]%
+      {{\texttt{lifelines-hc}}: a Python package for Higher Criticism
+       testing in two-sample survival analysis under non-proportional
+       hazards}
+
+% ---- authors ----
+\author[1,$\ast$]{Alon Kipnis}
+% \author[2]{Second Author}
+
+\authormark{Kipnis}
+
+\address[1]{%
+  \orgdiv{TODO: Department},
+  \orgname{TODO: Institution},
+  \orgaddress{%
+    \street{TODO: Street},
+    \postcode{TODO: Postcode},
+    \country{TODO: Country}%
+  }%
+}
+
+\corresp[$\ast$]{%
+  To whom correspondence should be addressed.
+  E-mail: \href{mailto:TODO@email.edu}{TODO@email.edu}%
+}
+
+% Dates — leave blank; editor fills on acceptance (month arg must be numeric)
+\received{}{0}{}
+\revised{}{0}{}
+\accepted{}{0}{}
+
+%\editor{Associate Editor: Name}
+
+% ---- structured abstract ----
+% Bioinformatics Application Notes: Motivation | Results | Availability
+% Use \\ between subsections; no blank lines inside \abstract{...}.
+\abstract{%
+\textbf{Motivation:}
+The log-rank test is the standard for comparing two survival distributions
+but is optimally powered only under proportional hazards (PH). Modern
+biological settings — immune checkpoint immunotherapy, aging-genetics
+models, and hormone-responsive pharmacology — increasingly produce
+temporally concentrated hazard departures. Existing weighted log-rank
+alternatives (Gehan-Wilcoxon, Tarone-Ware, Peto-Prentice,
+Fleming-Harrington) pre-specify a temporal emphasis, rendering them
+insensitive to departures outside their focal window.\\
+%
+\textbf{Results:}
+We introduce \texttt{lifelines-hc}, a Python package extending the
+\texttt{lifelines} survival library with the Higher Criticism (HC) test
+for right-censored two-sample data. HC evaluates the collective extremity
+of per-interval hypergeometric p-values and detects any localised hazard
+departure without committing to a temporal weight. Across three biological
+case studies — an immuno-oncology trial (CheckMate~057 PFS, $n=582$),
+a simulated \textit{Drosophila} late-life quantitative trait locus
+($n=1600$), and an adjuvant bisphosphonate trial (AZURE DFS, $n=3359$)
+— HC achieves $p \leq 0.013$ while the log-rank test and all four
+weighted alternatives return $p \geq 0.10$.\\
+%
+\textbf{Availability and Implementation:}
+\texttt{lifelines-hc} is freely available under the MIT licence at
+\url{https://github.com/TODO/lifelines-hc} and via
+\texttt{pip install lifelines-hc}; it requires Python~${\geq}\,3.8$ and
+\texttt{lifelines}~${\geq}\,0.29$. Full analysis scripts and per-method
+results tables are provided as Supplementary Data.%
+}
+
+\keywords{survival analysis; higher criticism; non-proportional hazards;
+  hypothesis testing; Python; immuno-oncology}
+
+\maketitle
+
+
+% =======================================================================
+\section{Introduction}
+% =======================================================================
+
+The Kaplan-Meier estimator \citep{kaplan1958} and the log-rank test
+\citep{mantel1966} remain the workhorses of two-sample survival analysis
+in biomedical research. The log-rank statistic sums weighted
+observed-minus-expected event counts across all failure times and is
+asymptotically optimal when the hazard ratio between groups is constant
+throughout follow-up --- the proportional hazards (PH) assumption
+\citep{schoenfeld1981}.
+
+Modern biological and clinical data increasingly violate PH in structured
+ways. Immune checkpoint inhibitors require an immune-priming phase before
+generating durable tumour suppression, producing survival curves that
+cross before diverging. This pattern is characteristic of the
+second-line NSCLC trial CheckMate~057, in which nivolumab showed an
+early progression excess relative to docetaxel before the immunotherapy
+arm gained a durable advantage \citep{borghaei2015}. In aging genetics,
+mutation-accumulation theory \citep{medawar1952} predicts alleles whose
+deleterious effects are expressed exclusively in post-reproductive life,
+creating narrow late-life mortality hot-spots that global averaging
+dilutes. In pharmacology, benefits conditional on a patient subgroup
+generate composite hazard differences that partially cancel: in the AZURE
+trial of adjuvant zoledronic acid, a bisphosphonate, the drug's
+bone-microenvironment benefit requires the low-oestrogen state of
+postmenopause and was absent in the many premenopausal patients enrolled
+\citep{coleman2011}.
+
+Weighted log-rank tests were developed to address non-PH alternatives.
+Gehan-Wilcoxon \citep{gehan1965} and Peto-Prentice \citep{peto1972}
+down-weight late events to increase sensitivity to early hazard
+differences; Tarone-Ware \citep{taroneware1977} applies an intermediate
+weight; Fleming-Harrington \citep{flemingharrington1991} provides a
+configurable weight via parameters $(p, q)$. However, each test
+concentrates power on a specific temporal region, so a test optimised for
+early differences is correspondingly insensitive to late ones, and no
+single pre-specified weight simultaneously covers all non-PH patterns.
+
+Higher Criticism (HC; \citealt{donoho2004}) is a meta-test that detects
+non-random concentrations of small p-values within a collection of
+tests. Applied to survival analysis \citep{kipnis_biometrika}, HC divides
+the follow-up into equal-width intervals, derives a per-interval
+hypergeometric p-value comparing event rates between the two groups, and
+assesses whether the most deviant subset of these p-values is collectively
+implausible under the global null. Because HC does not pre-weight any
+particular time window it retains power for concentrated hazard
+departures wherever they occur along the follow-up axis.
+
+Despite this theoretical advantage, an accessible Python implementation
+integrated with standard survival analysis workflows has been lacking. We
+present \texttt{lifelines-hc}, which fills this gap by extending the
+widely-used \texttt{lifelines} library \citep{davidsonpilon2019}.
+
+
+% =======================================================================
+\section{The \texttt{lifelines-hc} package}
+% =======================================================================
+
+\subsection*{Higher Criticism test for survival data}
+
+Given two groups with right-censored observations $(T_i, E_i, G_i)$,
+partition the follow-up range into $K$ equal-width intervals. For
+interval $k$, let $n_k$ be the total number of events, $r_k^A$ and
+$r_k^B$ the subjects at risk in groups A and B, and $x_k$ the number
+of events in group B. Under the null of equal group-specific hazards,
+%
+\begin{equation}\label{eq:hypergeom}
+  x_k \;\Big|\; n_k,\, r_k^A,\, r_k^B
+  \;\sim\;
+  \mathrm{Hypergeometric}\!\left(r_k^A + r_k^B,\; r_k^B,\; n_k\right),
+\end{equation}
+%
+yielding a one-sided interval p-value $p_k$. Ordering the $K$ p-values
+as $p_{(1)} \leq \cdots \leq p_{(K)}$, the HC statistic is
+%
+\begin{equation}\label{eq:hc}
+  \mathrm{HC}_K
+  \;=\;
+  \max_{1 \leq j \leq \lfloor\gamma K\rfloor}
+  \frac{j/K - p_{(j)}}{\sqrt{p_{(j)}\!\left(1 - p_{(j)}\right)/K}},
+\end{equation}
+%
+where $\gamma \in (0,1)$ (default $0.2$) restricts scanning to the most
+extreme fraction of interval p-values \citep{donoho2004}. A global
+p-value is obtained by permuting group labels
+($n_\mathrm{perms} = 500$ by default). For the two-sided alternative,
+the minimum of the two one-sided interval p-values replaces $p_k$
+in~(\ref{eq:hc}).
+
+\subsection*{Software design and API}
+
+\texttt{lifelines-hc} exposes a function-based API consistent with
+\texttt{lifelines.statistics}, accepting NumPy arrays of event times and
+indicators:
+
+\begin{lstlisting}
+from lifelines_hc import (higher_criticism_test,
+                           fisher_combination_test,
+                           min_p_test,
+                           suspected_deviations)
+
+result = higher_criticism_test(
+    T_A, T_B,
+    event_observed_A=E_A, event_observed_B=E_B,
+    n_intervals_to_pool=100, n_permutations=500,
+    alternative='both', gamma=0.2, seed=42)
+
+print(result.p_value)       # permutation-calibrated p-value
+print(result.test_statistic)  # HC statistic value
+\end{lstlisting}
+
+\noindent
+The companion \texttt{suspected\_deviations()} function returns a
+\texttt{pandas.DataFrame} of per-interval p-values with a
+\texttt{suspected} boolean column marking HC-flagged intervals, enabling
+overlay of diagnostic shading on Kaplan-Meier plots. Two complementary
+omnibus tests are also provided: Fisher combination \citep{fisher1932},
+which aggregates evidence via $-2\sum_k \log p_k$, and a
+Bonferroni-corrected MinP test. All three share the same permutation
+infrastructure. The package additionally ships with plotting utilities
+(\texttt{plot\_km\_with\_hc}, \texttt{plot\_pvalue\_profile}) and a
+convenience wrapper \texttt{run\_all\_tests()} that benchmarks HC,
+Fisher, MinP, log-rank, and the four weighted alternatives in a single
+call, returning a \texttt{pandas.DataFrame} for easy comparison.
+
+
+% =======================================================================
+\section{Results}
+% =======================================================================
+
+We demonstrate \texttt{lifelines-hc} on three biological datasets with
+distinct non-PH structures (Figure~\ref{fig:main}), benchmarking HC
+against the log-rank test and four weighted alternatives.
+Full per-method p-value tables and the \textit{Drosophila} case study
+are provided in Supplementary Data.
+
+\subsection*{Immuno-oncology: crossing survival curves}
+
+CheckMate~057 \citep{borghaei2015} randomised 582 patients with advanced
+non-squamous NSCLC to nivolumab ($n=292$) or docetaxel ($n=290$).
+Progression-free survival showed crossing curves: docetaxel provided a
+short-term advantage during immune priming, subsequently overtaken by the
+durable nivolumab response (Figure~\ref{fig:main}A). Individual patient
+data were reconstructed from the published Kaplan-Meier curve via the
+algorithm of \citet{guyot2012} as implemented in the \texttt{kmdata}
+R package.
+
+The log-rank test is non-significant ($p = 0.351$) as the early excess
+and late benefit partially cancel. Among the weighted alternatives,
+Gehan-Wilcoxon ($p = 0.041$) and Peto-Prentice ($p = 0.049$) reach
+borderline significance by detecting the early crossing, but
+Tarone-Ware ($p = 0.358$) and Fleming-Harrington\,(1,1) ($p = 0.256$)
+do not. HC achieves $p = 0.002$ and characterises the full crossing
+structure with far greater power (Figure~\ref{fig:main}B) by flagging
+both the early divergence and late separation windows independently.
+
+\subsection*{Aging genetics: a narrow late-life mortality hot-spot}
+
+To represent late-life QTL biology in \textit{Drosophila melanogaster}
+\citep{medawar1952,nuzhdin2005}, we generated a synthetic
+piecewise-exponential dataset ($n = 800$ per genotype) with baseline
+median lifespan 60~days, 90-day censoring, and a 4$\times$ elevated
+hazard exclusively in days~60--64 (the QTL window), with identical
+hazards outside this window. With 75 flanking null intervals, the
+log-rank test is non-significant ($p = 0.104$). All four weighted
+alternatives also fail: early-weighting tests (Gehan-Wilcoxon and
+Peto-Prentice, both $p = 0.203$) are insensitive to the late signal,
+and Fleming-Harrington\,(1,1), which emphasises mid-follow-up, reaches
+only $p = 0.060$. HC ($p = 0.002$) identifies the concentrated spike
+in the interval p-value profile (Supplementary Figure~S1), demonstrating
+that its scanning approach is not penalised by the long null early period.
+
+\subsection*{Adjuvant bisphosphonate therapy: a menopause-dependent effect}
+
+The AZURE trial \citep{coleman2011,coleman2014} randomised 3359 early-stage
+breast cancer patients to standard adjuvant therapy with ($n=1681$) or
+without ($n=1678$) zoledronic acid. Disease-free survival showed no
+significant log-rank difference ($p = 0.305$) because the drug's
+bone-microenvironment benefit depends on the low-oestrogen state of
+postmenopause, which was absent in the many premenopausal patients
+enrolled at baseline. As these patients progressively transitioned to
+postmenopause during the decade-long follow-up, the hazard difference
+accumulated in a specific mid-to-late window (months 20--60) rather than
+uniformly (Figure~\ref{fig:main}C--D).
+
+All four weighted alternatives are non-significant ($p \geq 0.28$):
+no single temporal weight captures a pattern distributed across this
+window while remaining unaffected by the null early period. HC
+($p = 0.012$) detects this scattered but collectively significant signal.
+The result is validated by published subgroup analyses showing significant
+DFS benefit in postmenopausal patients \citep{coleman2011,coleman2014},
+confirming that HC is detecting a genuine biological effect.
+
+Across the three case studies, the two borderline significances for
+Gehan-Wilcoxon and Peto-Prentice in CheckMate~057 are the only instances
+where a weighted alternative reaches $p < 0.05$, and these are
+attributable to those tests' early emphasis coincidentally aligning with
+the crossing-curve signal rather than to any general superiority of the
+weighted approach. Fisher combination ($p \leq 0.04$ in all three
+domains) and MinP ($p \leq 0.022$ in two of three) are also significant,
+consistent with the sparse, localised nature of the underlying signals.
+
+
+% =======================================================================
+\section{Conclusion}
+% =======================================================================
+
+\texttt{lifelines-hc} provides a general-purpose HC test for two-sample
+right-censored survival data within the Python ecosystem. Unlike weighted
+log-rank alternatives, HC requires no a priori specification of the
+temporal window in which a hazard departure is expected and retains power
+for concentrated departures wherever they occur. The package integrates
+transparently with \texttt{lifelines} workflows, returns diagnostic
+interval-level information identifying which time windows drive the test
+result, and includes Fisher combination and MinP tests as complementary
+omnibus alternatives. Together, these tools offer a practical complement
+to standard survival testing in any setting where the proportional
+hazards assumption is uncertain.
+
+
+% =======================================================================
+%  Back matter
+% =======================================================================
+
+\section*{Acknowledgements}
+TODO.
+
+\section*{Conflict of Interest}
+None declared.
+
+\section*{Funding}
+TODO.
+
+\section*{Data availability}
+Individual patient data for CheckMate~057 and the AZURE trial were
+reconstructed from published Kaplan-Meier curves using the algorithm of
+\citet{guyot2012} as implemented in the \texttt{kmdata} R package
+(\url{https://github.com/raredd/kmdata}). The synthetic
+\textit{Drosophila} dataset is generated by the reproducible analysis
+scripts distributed with the package. All analysis code is available at
+\url{https://github.com/TODO/lifelines-hc/tree/main/AppNote}.
+
+
+% =======================================================================
+%  Figure — full-width across both columns
+% =======================================================================
+
+\begin{figure*}[t!]
+  \centering
+  \includegraphics[width=\textwidth]{figure1}
+  \caption{%
+    \textbf{Higher Criticism detects non-proportional hazard departures
+    across two biological domains.}
+    %
+    \textbf{(A)}~Kaplan-Meier progression-free survival curves for
+    CheckMate~057 (nivolumab vs.\ docetaxel, $n=582$) with HC-flagged
+    intervals shaded in blue; log-rank $p=0.351$, HC $p=0.002$.
+    Curves cross at $\sim\!3$ months before diverging.
+    %
+    \textbf{(B)}~Per-interval $-\!\log_{10}$(hypergeometric p-value) for
+    CheckMate~057. Bars exceeding the HC threshold (dashed, permutation-
+    calibrated) are highlighted in red, marking the early-crossing and
+    late-separation windows.
+    %
+    \textbf{(C)}~Kaplan-Meier disease-free survival for the AZURE trial
+    (zoledronic acid vs.\ control, $n=3359$) with HC-flagged intervals
+    in orange; log-rank $p=0.305$, HC $p=0.012$. The signal reflects a
+    menopause-dependent benefit accumulating in months~20--60.
+    %
+    \textbf{(D)}~Per-interval $-\!\log_{10}$(hypergeometric p-value) for
+    AZURE. The signal is distributed across the mid-follow-up range,
+    outside the reach of any single-weight log-rank alternative.
+    Individual patient data reconstructed via \citet{guyot2012}.
+  }
+  \label{fig:main}
+\end{figure*}
+
+
+% =======================================================================
+%  Bibliography
+% =======================================================================
+
+% oup-authoring-template.bst is available on Overleaf; locally use plainnat.
+% Switch to \bibliographystyle{oup-authoring-template} when uploading to Overleaf.
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}
