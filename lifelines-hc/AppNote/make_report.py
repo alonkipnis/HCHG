@@ -111,14 +111,14 @@ footer { margin-top: 3em; font-size: 0.82em; color: #888; border-top: 1px solid 
 def make_html(out_path: Path) -> None:
     # ---- load figures ----
     io_fig    = b64img(FIGS_DIR / "immuno_km.png")
-    droso_fig = b64img(FIGS_DIR / "drosophila_km.png")
     azure_fig = b64img(FIGS_DIR / "azure_km.png")
+    comet_fig = b64img(FIGS_DIR / "comet_km.png")
     fig1      = b64img(FIGS_DIR / "figure1.png")
 
     # ---- load results tables ----
     io_tbl    = results_table(RES_DIR / "immuno_test_results.csv")
-    droso_tbl = results_table(RES_DIR / "drosophila_test_results.csv")
     azure_tbl = results_table(RES_DIR / "azure_test_results.csv")
+    comet_tbl = results_table(RES_DIR / "comet_test_results.csv")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -137,11 +137,13 @@ def make_html(out_path: Path) -> None:
 We evaluate the Higher Criticism (HC) test against log-rank and four
 weighted log-rank variants designed for non-proportional hazards —
 Gehan-Wilcoxon, Tarone-Ware, Peto-Prentice, and Fleming-Harrington(1,1) —
-across three biological domains: crossing immunotherapy curves (CheckMate 057),
-a narrow late-life mortality window in <em>Drosophila</em>, and a
-menopause-dependent temporally concentrated benefit in adjuvant bisphosphonate
-therapy (AZURE). In all three cases HC detects a significant effect
-(p ≤ 0.03) that the standard log-rank test misses (p ≥ 0.10).
+across three real clinical datasets with distinct non-proportional-hazards
+patterns: crossing immunotherapy curves (CheckMate 057 PFS), a
+menopause-dependent accumulated benefit in adjuvant bisphosphonate therapy
+(AZURE DFS), and a transient early benefit from targeted kinase inhibition
+in castration-resistant prostate cancer (COMET-1 OS).
+In all three cases HC detects a significant effect (p ≤ 0.013) that the
+standard log-rank test misses (p ≥ 0.26).
 </div>
 
 <!-- ===================================================================== -->
@@ -205,67 +207,70 @@ early crossing then late separation.
 
 
 <!-- ===================================================================== -->
-<h2>Domain 2 — Drosophila melanogaster Late-life QTL</h2>
+<h2>Domain 2 — Targeted Therapy in Metastatic Prostate Cancer (COMET-1)</h2>
 
 <div class="domain">
 
 <h3>Biological context</h3>
 <p>
-Mutation-accumulation theory (Medawar 1952) predicts that deleterious alleles
-whose effects are expressed exclusively in post-reproductive life escape natural
-selection and can reach appreciable population frequencies. Such alleles produce
-a narrow <em>temporal hot-spot</em> of elevated mortality rather than a
-proportionally elevated hazard throughout life. The standard log-rank statistic,
-which averages over the entire lifespan, is severely diluted by the long null
-early period. HC, which targets the most deviant subset of time intervals,
-is designed for exactly this concentrated signal.
+Metastatic castration-resistant prostate cancer (mCRPC) predominantly
+spreads to bone, making the bone microenvironment central to disease
+progression. Cabozantinib is a multi-target kinase inhibitor of MET and
+VEGFR2 — two receptors that sustain tumour survival and angiogenesis
+within the bone niche. In the COMET-1 trial, cabozantinib significantly
+improved bone scan response at week 12, confirming genuine short-term
+biological activity. However, mCRPC is driven by multiple parallel
+pathways (androgen receptor splice variants, PI3K/AKT, and others); once
+the targeted pathways are suppressed, resistance through alternative routes
+rapidly re-establishes growth. The net effect is a <em>temporally
+concentrated</em> early-phase survival benefit that fades as the disease
+adapts — a pattern that the global log-rank average misses but HC's
+interval-scanning detects.
 </p>
 
 <h3>Dataset</h3>
 <p>
-<strong>Synthetic piecewise-exponential model</strong> calibrated to the
-Drosophila late-life QTL literature (Nuzhdin <em>et al.</em> 2005;
-Remolina <em>et al.</em> 2012). N&thinsp;=&thinsp;1600 (800 per genotype),
-follow-up to 90 days, median lifespan ≈&thinsp;60 days. The variant genotype
-has a 4× elevated hazard exclusively during days&thinsp;60–64 (QTL window),
-then returns to the same baseline hazard as the control genotype.
-</p>
-<p style="font-size:0.88em;color:#555;">
-Note: the Dryad DOI for real Remolina <em>et al.</em> data (10.5061/dryad.94pv0)
-returned HTTP 404; synthetic data are used as an illustration.
-Real data can be substituted in <code>run_drosophila.py</code> once available.
+<strong>COMET-1</strong> (Smith <em>et al.</em> 2016, <em>J Clin Oncol</em>).
+Phase III trial of cabozantinib (n&thinsp;=&thinsp;682) vs prednisone
+(n&thinsp;=&thinsp;346) in chemotherapy-pretreated mCRPC. 2:1
+randomisation. Endpoint: overall survival (OS). Median OS ≈ 9–10 months;
+611 events total. Individual patient data reconstructed via the kmdata
+R package (Guyot algorithm).
 </p>
 
 <div class="verdict">
-  Log-rank: <span class="label ns">p = 0.104 &nbsp;NS</span>
+  Log-rank: <span class="label ns">p = 0.262 &nbsp;NS</span>
   &nbsp;&nbsp;
-  HC: <span class="label sig">p = 0.002 &nbsp;★</span>
+  HC: <span class="label sig">p = 0.012 &nbsp;★</span>
 </div>
 
 <figure class="fig-block">
-  {droso_fig}
+  {comet_fig}
   <figcaption>
-    <strong>Figure 2 (Drosophila QTL).</strong>
-    Left: Kaplan–Meier survival curves with HC-flagged intervals in orange.
-    Right: per-interval −log<sub>10</sub>(<em>p</em>-value) bar chart. The
-    concentrated spike at day 60–64 is visible in the right panel; the 75
-    flanking null intervals dilute the log-rank but not HC.
+    <strong>Figure 2 (COMET-1 trial).</strong>
+    Left: Kaplan–Meier OS curves (cabozantinib vs prednisone, n&thinsp;=&thinsp;1028)
+    with HC-flagged intervals shaded in green. The curves are close overall
+    but cabozantinib shows a localised early advantage (months ≈&thinsp;3–7)
+    during the bone-response phase. Right: per-interval
+    −log<sub>10</sub>(hypergeometric <em>p</em>-value) bar chart; the
+    early spike exceeds the HC threshold while the rest of the profile is null.
   </figcaption>
 </figure>
 
 <h3>Statistical results</h3>
-{droso_tbl}
+{comet_tbl}
 <p style="font-size:0.88em;color:#555;">
   ✓ = significant at α = 0.05. HC row highlighted in orange.<br>
-  Fisher combination and MinP are also significant; both concentrate on the
-  smallest interval p-values and are powered for sparse, localised signals.
-  All four weighted log-rank variants fail: Gehan-Wilcoxon, Tarone-Ware, and
-  Peto-Prentice emphasise early survival where both genotypes are identical;
-  Fleming-Harrington(1,1) weights the mid-follow-up and comes closest
-  (p&thinsp;≈&thinsp;0.060) but does not reach significance.  The 4-day QTL
-  window falls entirely outside the early- and mid-weighted regions, making
-  HC's interval-scanning approach the only global statistic that reliably
-  detects this narrow mortality hot-spot.
+  All four weighted log-rank variants fail to reach significance (p ≥ 0.19).
+  The early-weighted Gehan-Wilcoxon (p&thinsp;≈&thinsp;0.19) and
+  Peto-Prentice (p&thinsp;≈&thinsp;0.21) come closest but are diluted by
+  the long null period after the initial bone-response window. Tarone-Ware
+  (p&thinsp;≈&thinsp;0.21) and Fleming-Harrington(1,1) (p&thinsp;≈&thinsp;0.42)
+  similarly miss the signal. HC (p&thinsp;=&thinsp;0.012) and Fisher
+  combination (p&thinsp;=&thinsp;0.020) aggregate evidence from the
+  specific early intervals where cabozantinib's bone-lesion response
+  translates into a temporary OS advantage, without being penalised by
+  the subsequent null period.
 </p>
 
 </div><!-- /domain 2 -->
@@ -351,12 +356,14 @@ Kaplan–Meier curve via the kmdata R package (Guyot algorithm).
 <figure class="fig-block">
   {fig1}
   <figcaption>
-    <strong>Figure 5 — Proposed Figure 1 for the Application Note.</strong>
-    2 × 2 layout: panels A/B show the CheckMate 057 PFS result (immuno-oncology,
-    crossing survival curves); panels C/D show the AZURE trial DFS result
-    (adjuvant bisphosphonate, menopause-dependent temporally concentrated
-    benefit). Each row pairs the KM plot (with HC-shaded intervals) with the
-    per-interval <em>p</em>-value profile.
+    <strong>Figure 4 — Proposed Figure 1 for the Application Note.</strong>
+    2 × 3 layout. Top row: Kaplan–Meier curves with HC-flagged intervals for
+    all three domains. Bottom row: per-interval −log<sub>10</sub>(<em>p</em>-value)
+    profiles. <strong>A/D</strong> CheckMate 057 PFS (immuno-oncology, crossing curves);
+    <strong>B/E</strong> AZURE DFS (adjuvant bisphosphonate, mid-to-late accumulated benefit);
+    <strong>C/F</strong> COMET-1 OS (targeted therapy in mCRPC, transient early benefit).
+    The three examples show three distinct temporal patterns, all detected by HC
+    and all missed by log-rank and four NPH-weighted alternatives.
   </figcaption>
 </figure>
 </div>
@@ -373,17 +380,17 @@ Kaplan–Meier curve via the kmdata R package (Guyot algorithm).
   <tbody>
     <tr class="hc">
       <td>Immuno-oncology</td>
-      <td>CheckMate 057 PFS (real)</td>
+      <td>CheckMate 057 PFS</td>
       <td>582</td><td>0.351</td><td>0.002</td><td>✓</td>
     </tr>
     <tr class="hc">
-      <td>Drosophila QTL</td>
-      <td>Synthetic piecewise-exp.</td>
-      <td>1600</td><td>0.104</td><td>0.002</td><td>✓</td>
+      <td>Targeted therapy (mCRPC)</td>
+      <td>COMET-1 OS</td>
+      <td>1028</td><td>0.262</td><td>0.012</td><td>✓</td>
     </tr>
     <tr class="hc">
       <td>Adjuvant bisphosphonate</td>
-      <td>AZURE trial DFS (real)</td>
+      <td>AZURE trial DFS</td>
       <td>3359</td><td>0.305</td><td>0.012</td><td>✓</td>
     </tr>
   </tbody>
@@ -391,17 +398,18 @@ Kaplan–Meier curve via the kmdata R package (Guyot algorithm).
 </div>
 
 <p>
-In all three domains, the standard log-rank statistic fails to reach
-significance (p &gt; 0.10) while the Higher Criticism test achieves p ≤ 0.013.
-The common feature is a <em>temporally localised</em> hazard signal that is
-diluted by global averaging but concentrated enough for HC's interval-based
-scanning: a crossing-curve pattern in immuno-oncology, a narrow 4-day
-mortality hot-spot in the <em>Drosophila</em> QTL model, and a
-progressively accumulating menopause-dependent benefit in the AZURE
-bisphosphonate trial. Crucially, the four weighted log-rank alternatives
-(each committing to a specific temporal emphasis) also fail in every case,
-demonstrating that HC's advantage is not specific to signals at the beginning
-or end of follow-up but extends to any rare, localised hazard departure.
+Across all three real clinical datasets, the standard log-rank statistic
+fails to reach significance (p ≥ 0.26) while the Higher Criticism test
+achieves p ≤ 0.013. The three examples represent genuinely distinct
+non-proportional-hazards structures: crossing curves in immuno-oncology
+(early crossing followed by late divergence), a transient early bone-response
+benefit in prostate cancer targeted therapy (COMET-1), and a progressively
+accumulated menopause-dependent benefit in adjuvant bisphosphonate therapy
+(AZURE). All four weighted log-rank alternatives — each committing to a
+specific temporal emphasis — also fail in every case, demonstrating that
+HC's advantage is general: it is not tuned to signals at any particular
+point in follow-up but detects any localized temporal departure from
+proportional hazards.
 </p>
 
 <footer>
