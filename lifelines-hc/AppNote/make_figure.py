@@ -1,13 +1,15 @@
 """
 Generate the composite Application Note figure (Figure 1).
 
-Layout (2 rows × 2 columns):
-  Row 1 — Immuno-oncology (CheckMate 057 PFS)
-    Panel A: KM curves with HC-flagged intervals
-    Panel B: Per-interval -log10(p) bar chart with HC threshold line
-  Row 2 — Adjuvant bisphosphonate therapy (AZURE trial DFS)
-    Panel C: KM curves with HC-flagged intervals
-    Panel D: Per-interval -log10(p) bar chart with HC threshold line
+Layout (2 rows × 3 columns):
+  Row 1 — KM curves with HC-flagged intervals
+    Panel A: Immuno-oncology    (CheckMate 057 PFS)
+    Panel B: Bisphosphonate     (AZURE trial DFS)
+    Panel C: Targeted therapy   (COMET-1 trial OS)
+  Row 2 — Per-interval -log10(p) bar charts
+    Panel D: CheckMate 057
+    Panel E: AZURE
+    Panel F: COMET-1
 
 Usage:
     python make_figure.py [--out figs/figure1.png]
@@ -15,6 +17,7 @@ Usage:
 Pre-requisites:
   run_immuno_oncology.py  (or Checkmate057_1C.csv in data/)
   run_azure.py            (or AZURE_2A.csv in data/)
+  run_comet.py            (or COMET1_2A.csv in data/)
 """
 
 import argparse
@@ -48,8 +51,9 @@ DATA_DIR = SCRIPT_DIR / "data"
 FIGS_DIR = SCRIPT_DIR / "figs"
 FIGS_DIR.mkdir(parents=True, exist_ok=True)
 
-N_INTERVALS_IO    = 60   # immuno-oncology (~1 bin/month for 30-mo PFS)
-N_INTERVALS_AZURE = 80   # bisphosphonate  (~1.5-month bins, 120-mo follow-up)
+N_INTERVALS_IO    = 60   # immuno-oncology  (~1 bin/month for 30-mo PFS)
+N_INTERVALS_AZURE = 80   # bisphosphonate   (~1.5-month bins, 120-mo follow-up)
+N_INTERVALS_COMET = 80   # targeted therapy (~0.3-month bins, 22-mo OS)
 N_PERMS           = 500
 
 
@@ -119,6 +123,22 @@ def load_azure():
     return T_ctrl, T_trt, E_ctrl, E_trt
 
 
+def load_comet():
+    """Load COMET-1 trial OS data."""
+    csv_path = DATA_DIR / "COMET1_2A.csv"
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            "COMET1_2A.csv not found. "
+            "Run '01_get_kmdata.py --trials COMET1_2A' to download."
+        )
+    df = pd.read_csv(csv_path)
+    df.columns = df.columns.str.strip().str.lower()
+    ctrl = df[df["arm"] == "prednisone"]
+    trt  = df[df["arm"] == "cabozantinib"]
+    return (ctrl["time"].values.astype(float), trt["time"].values.astype(float),
+            ctrl["event"].values.astype(float), trt["event"].values.astype(float))
+
+
 def _pick(df, candidates):
     for c in candidates:
         if c in df.columns: return c
@@ -135,25 +155,34 @@ def _pick(df, candidates):
 def build_figure(out_path: Path):
     T_io_ctrl, T_io_trt, E_io_ctrl, E_io_trt = load_poplar()
     T_az_ctrl, T_az_trt, E_az_ctrl, E_az_trt = load_azure()
+    T_co_ctrl, T_co_trt, E_co_ctrl, E_co_trt = load_comet()
 
     dev_io = pvalue_profile(T_io_ctrl, T_io_trt, E_io_ctrl, E_io_trt,
                              n_intervals=N_INTERVALS_IO)
     dev_az = pvalue_profile(T_az_ctrl, T_az_trt, E_az_ctrl, E_az_trt,
                              n_intervals=N_INTERVALS_AZURE)
+    dev_co = pvalue_profile(T_co_ctrl, T_co_trt, E_co_ctrl, E_co_trt,
+                             n_intervals=N_INTERVALS_COMET)
 
     res_io = run_all_tests(T_io_ctrl, T_io_trt, E_io_ctrl, E_io_trt,
                             n_intervals=N_INTERVALS_IO, n_permutations=N_PERMS)
     res_az = run_all_tests(T_az_ctrl, T_az_trt, E_az_ctrl, E_az_trt,
                             n_intervals=N_INTERVALS_AZURE, n_permutations=N_PERMS)
+    res_co = run_all_tests(T_co_ctrl, T_co_trt, E_co_ctrl, E_co_trt,
+                            n_intervals=N_INTERVALS_COMET, n_permutations=N_PERMS)
 
-    fig = plt.figure(figsize=(14, 9))
-    gs = GridSpec(2, 2, figure=fig, hspace=0.40, wspace=0.35)
+    # 2 rows × 3 columns: row 1 = KM plots, row 2 = p-value profiles
+    fig = plt.figure(figsize=(18, 9))
+    gs = GridSpec(2, 3, figure=fig, hspace=0.42, wspace=0.32)
 
     ax_A = fig.add_subplot(gs[0, 0])
     ax_B = fig.add_subplot(gs[0, 1])
-    ax_C = fig.add_subplot(gs[1, 0])
-    ax_D = fig.add_subplot(gs[1, 1])
+    ax_C = fig.add_subplot(gs[0, 2])
+    ax_D = fig.add_subplot(gs[1, 0])
+    ax_E = fig.add_subplot(gs[1, 1])
+    ax_F = fig.add_subplot(gs[1, 2])
 
+    # --- Row 1: KM plots ---
     plot_km_with_hc(
         ax_A, T_io_ctrl, T_io_trt, E_io_ctrl, E_io_trt,
         n_intervals=N_INTERVALS_IO,
@@ -165,26 +194,42 @@ def build_figure(out_path: Path):
     )
     _annotate_pvals(ax_A, res_io)
 
-    plot_pvalue_profile(
-        ax_B, dev_io,
-        title=r"B  Interval $p$-values — CheckMate 057",
-        xlabel="Time interval (months)",
-    )
-
     plot_km_with_hc(
-        ax_C, T_az_ctrl, T_az_trt, E_az_ctrl, E_az_trt,
+        ax_B, T_az_ctrl, T_az_trt, E_az_ctrl, E_az_trt,
         n_intervals=N_INTERVALS_AZURE,
         label_A="Control",
         label_B="Zoledronic acid",
         shade_color="darkorange",
-        title="C  Adjuvant bisphosphonate (AZURE trial DFS)",
+        title="B  Adjuvant bisphosphonate (AZURE DFS)",
         xlabel="Time (months)",
     )
-    _annotate_pvals(ax_C, res_az)
+    _annotate_pvals(ax_B, res_az)
 
+    plot_km_with_hc(
+        ax_C, T_co_ctrl, T_co_trt, E_co_ctrl, E_co_trt,
+        n_intervals=N_INTERVALS_COMET,
+        label_A="Prednisone (control)",
+        label_B="Cabozantinib",
+        shade_color="seagreen",
+        title="C  Targeted therapy (COMET-1 OS)",
+        xlabel="Time (months)",
+    )
+    _annotate_pvals(ax_C, res_co)
+
+    # --- Row 2: p-value profiles ---
     plot_pvalue_profile(
-        ax_D, dev_az,
-        title=r"D  Interval $p$-values — AZURE trial",
+        ax_D, dev_io,
+        title=r"D  Interval $p$-values — CheckMate 057",
+        xlabel="Time interval (months)",
+    )
+    plot_pvalue_profile(
+        ax_E, dev_az,
+        title=r"E  Interval $p$-values — AZURE",
+        xlabel="Time interval (months)",
+    )
+    plot_pvalue_profile(
+        ax_F, dev_co,
+        title=r"F  Interval $p$-values — COMET-1",
         xlabel="Time interval (months)",
     )
 
