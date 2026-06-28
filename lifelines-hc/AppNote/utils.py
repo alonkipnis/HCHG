@@ -229,45 +229,63 @@ def plot_km_with_hc(
 def plot_pvalue_profile(
     ax,
     df_dev: pd.DataFrame,
-    direction: str = "greater",
+    direction: str = "greater",          # kept for backward compatibility; unused
     color_suspect: str = "crimson",
     color_null: str = "steelblue",
     xlabel: str = "Time interval",
-    ylabel: str = r"$-\log_{10}(p)$",
+    ylabel: str = r"signed $-\log_{10}(p)$",
     title: str = "Per-interval hypergeometric p-values",
 ) -> None:
-    """Bar chart of -log10(p) per interval, highlighting suspected windows.
+    """Signed per-interval p-value bar chart, highlighting suspected windows.
+
+    For the two-sided test, each interval is summarised by whichever
+    direction is more extreme:
+
+    * **upward** bar  = excess events in group B (treatment), height
+      :math:`-\\log_{10}(p_{\\text{fwd}})`;
+    * **downward** bar = excess events in group A (control), depth
+      :math:`-\\log_{10}(p_{\\text{rev}})` drawn below zero.
+
+    A dashed HC-threshold line is drawn on each side, so a bar crosses a
+    line **iff** the interval is flagged as suspected — making this panel
+    consistent with the shaded intervals on the companion KM plot.
 
     Parameters
     ----------
     df_dev : pd.DataFrame
-        Output of :func:`pvalue_profile`.
-    direction : ``'greater'`` | ``'rev'``
-        Which direction's p-values to plot.  Use ``'greater'`` for excess
-        events in group B, ``'rev'`` for excess events in group A.
+        Output of :func:`pvalue_profile` (with ``alternative='both'`` so the
+        reverse-direction columns are present).
     """
-    pval_col = "hypergeom_pvalue" if direction == "greater" else "hypergeom_pvalue_rev"
-    if pval_col not in df_dev.columns:
-        pval_col = "hypergeom_pvalue"
+    p_fwd = df_dev["hypergeom_pvalue"].values.astype(float).clip(1e-10, 1)
+    has_rev = "hypergeom_pvalue_rev" in df_dev.columns
+    if has_rev:
+        p_rev = df_dev["hypergeom_pvalue_rev"].values.astype(float).clip(1e-10, 1)
+        # per interval pick the more extreme direction; sign encodes which arm
+        use_fwd = p_fwd <= p_rev
+        score = np.where(use_fwd, -np.log10(p_fwd), np.log10(p_rev))
+    else:
+        score = -np.log10(p_fwd)
 
-    pvals = df_dev[pval_col].values.clip(1e-10, 1)
-    neg_log_p = -np.log10(pvals)
     suspected = df_dev.get("suspected", pd.Series(False, index=df_dev.index)).values
-
     colors = np.where(suspected, color_suspect, color_null)
     x = np.arange(len(df_dev))
 
-    ax.bar(x, neg_log_p, color=colors, width=0.8, alpha=0.85)
+    ax.bar(x, score, color=colors, width=0.8, alpha=0.85)
+    ax.axhline(0, color="0.5", linewidth=0.8)
 
-    threshold = df_dev["hc_threshold"].iloc[0] if "hc_threshold" in df_dev.columns else None
-    if threshold is not None and 0 < threshold < 1:
-        ax.axhline(-np.log10(threshold), color="k", linestyle="--", linewidth=1.2,
-                   label=f"HC threshold ({threshold:.3f})")
+    thr = df_dev["hc_threshold"].iloc[0] if "hc_threshold" in df_dev.columns else None
+    if thr is not None and 0 < thr < 1:
+        ax.axhline(-np.log10(thr), color="k", linestyle="--", linewidth=1.2,
+                   label=f"HC threshold ({thr:.3f})")
+    if has_rev and "hc_threshold_rev" in df_dev.columns:
+        thr_rev = df_dev["hc_threshold_rev"].iloc[0]
+        if 0 < thr_rev < 1:
+            ax.axhline(np.log10(thr_rev), color="k", linestyle="--", linewidth=1.2)
 
     ax.set_xlabel(xlabel, fontsize=11)
     ax.set_ylabel(ylabel, fontsize=11)
     ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=9, loc="upper right")
 
     # Replace numeric x-ticks with time labels (every ~10 intervals)
     step = max(1, len(df_dev) // 10)

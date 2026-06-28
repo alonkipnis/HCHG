@@ -638,6 +638,7 @@ def suspected_deviations(
         flagged_rev = pvals_rev <= hc_thresh_rev
         df["hypergeom_pvalue_rev"] = np.round(pvals_rev, 6)
         df["suspected_rev"] = flagged_rev
+        df["hc_threshold_rev"] = hc_thresh_rev
         df["suspected"] = flagged | flagged_rev
 
     return df

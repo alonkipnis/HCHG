@@ -184,8 +184,11 @@ early crossing then late separation.
   <figcaption>
     <strong>Figure 1 (immuno-oncology).</strong>
     Left: Kaplan–Meier PFS curves with HC-flagged time intervals shaded in blue.
-    Right: per-interval −log<sub>10</sub>(hypergeometric <em>p</em>-value); bars
-    above the dashed HC threshold are highlighted in red.
+    Right: per-interval <em>signed</em> −log<sub>10</sub>(hypergeometric
+    <em>p</em>-value) — upward bars mark excess events in the treatment arm,
+    downward bars excess in the control arm. Bars reaching beyond either dashed
+    HC threshold are highlighted in red and coincide exactly with the shaded
+    intervals on the left.
   </figcaption>
 </figure>
 
@@ -251,9 +254,10 @@ R package (Guyot algorithm).
     Left: Kaplan–Meier OS curves (cabozantinib vs prednisone, n&thinsp;=&thinsp;1028)
     with HC-flagged intervals shaded in green. The curves are close overall
     but cabozantinib shows a localised early advantage (months ≈&thinsp;3–7)
-    during the bone-response phase. Right: per-interval
-    −log<sub>10</sub>(hypergeometric <em>p</em>-value) bar chart; the
-    early spike exceeds the HC threshold while the rest of the profile is null.
+    during the bone-response phase. Right: per-interval <em>signed</em>
+    −log<sub>10</sub>(hypergeometric <em>p</em>-value) — upward = excess in
+    cabozantinib, downward = excess in prednisone. Bars reaching beyond either
+    dashed HC threshold are red and match the shaded intervals on the left.
   </figcaption>
 </figure>
 
@@ -320,8 +324,10 @@ Kaplan–Meier curve via the kmdata R package (Guyot algorithm).
   <figcaption>
     <strong>Figure 3 (AZURE trial).</strong>
     Left: Kaplan–Meier DFS curves with HC-flagged time intervals shaded in
-    orange. Right: per-interval −log<sub>10</sub>(hypergeometric <em>p</em>-value)
-    bar chart; bars above the dashed HC threshold are highlighted in red. The
+    orange. Right: per-interval <em>signed</em> −log<sub>10</sub>(hypergeometric
+    <em>p</em>-value) — upward = excess in the zoledronic-acid arm, downward =
+    excess in control. Bars reaching beyond either dashed HC threshold are red
+    and match the shaded intervals on the left. The
     flagged intervals (months ≈&thinsp;20–60) correspond to the period when
     the growing fraction of patients transitioning to postmenopause accumulates
     a bone-microenvironment benefit that is temporally concentrated rather than
@@ -358,8 +364,10 @@ Kaplan–Meier curve via the kmdata R package (Guyot algorithm).
   <figcaption>
     <strong>Figure 4 — Proposed Figure 1 for the Application Note.</strong>
     2 × 3 layout. Top row: Kaplan–Meier curves with HC-flagged intervals for
-    all three domains. Bottom row: per-interval −log<sub>10</sub>(<em>p</em>-value)
-    profiles. <strong>A/D</strong> CheckMate 057 PFS (immuno-oncology, crossing curves);
+    all three domains. Bottom row: per-interval <em>signed</em>
+    −log<sub>10</sub>(<em>p</em>-value) profiles (upward = excess in treatment,
+    downward = excess in control; red bars beyond either threshold match the
+    shaded intervals above). <strong>A/D</strong> CheckMate 057 PFS (immuno-oncology, crossing curves);
     <strong>B/E</strong> AZURE DFS (adjuvant bisphosphonate, mid-to-late accumulated benefit);
     <strong>C/F</strong> COMET-1 OS (targeted therapy in mCRPC, transient early benefit).
     The three examples show three distinct temporal patterns, all detected by HC

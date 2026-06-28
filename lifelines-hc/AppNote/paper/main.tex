@@ -388,10 +388,13 @@ All analysis code is available at
   \caption{%
     \textbf{Higher Criticism detects non-proportional hazard departures
     across three biological domains with distinct temporal patterns.}
-    Top row: Kaplan-Meier curves with HC-flagged intervals (shaded).
-    Bottom row: per-interval $-\!\log_{10}$(hypergeometric p-value);
-    bars exceeding the HC threshold (dashed, permutation-calibrated)
-    are highlighted in red.
+    Top row: Kaplan-Meier curves with HCHG-flagged intervals (shaded).
+    Bottom row: per-interval \emph{signed} $-\!\log_{10}$(hypergeometric
+    p-value) --- upward bars mark excess events in the treatment arm,
+    downward bars excess in the control arm. Dashed lines are the
+    per-direction HCHG thresholds; bars reaching beyond either line are
+    highlighted in red and coincide exactly with the intervals shaded
+    above.
     %
     \textbf{(A,D)}~CheckMate~057 PFS (nivolumab vs.\ docetaxel, $n=582$);
     log-rank $p=0.351$, HCHG $p=0.002$. Curves cross at $\sim\!3$ months
