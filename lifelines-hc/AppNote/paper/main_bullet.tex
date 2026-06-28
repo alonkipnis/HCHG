@@ -104,10 +104,12 @@
         hypergeometric p-values; \citealt{kipnis_biometrika}).
   \item HCHG detects sparse hazard departures at unknown locations with
         no pre-committed temporal weight.
-  \item Three real clinical datasets: CheckMate~057 PFS ($n=582$),
-        COMET-1 OS ($n=1028$), AZURE DFS ($n=3359$).
-  \item HCHG: $p \leq 0.013$ in all three; log-rank and four weighted
-        alternatives: $p \geq 0.26$ in all three.
+  \item Four real clinical datasets: CheckMate~057 PFS ($n=582$),
+        COMET-1 OS ($n=1028$), AZURE DFS ($n=3359$), and the CSL
+        liver-cirrhosis trial ($n=446$) — the last with fully public
+        individual patient data.
+  \item HCHG: $p \leq 0.013$ in all four; log-rank and four weighted
+        alternatives: $p \geq 0.13$ in all four.
 \end{itemize}
 \textbf{Availability and Implementation:}
 \begin{itemize}
@@ -155,6 +157,12 @@
         menopause-dependent; hazard difference accumulates only after
         premenopausal patients transition to postmenopause.
         AZURE trial \citep{coleman2011}.
+  \item \textit{Time-varying treatment effect (hepatology):} Prednisone
+        in liver cirrhosis is harmful early (infection / fluid retention)
+        but anti-inflammatory later; the survival curves cross more than
+        once, with the effect concentrated in a few non-contiguous windows.
+        CSL trial \citep{csl_data} --- a canonical non-PH dataset with
+        \emph{fully public} individual patient data.
 \end{itemize}
 
 \textbf{Existing non-PH alternatives and their limitation}
@@ -278,9 +286,12 @@ print(result.test_statistic)  # HCHG statistic value
 
 \textbf{Overview}
 \begin{itemize}
-  \item Three real clinical datasets with distinct sparse non-PH patterns
-        (Figure~\ref{fig:main}).
+  \item Four real clinical datasets with distinct sparse non-PH patterns
+        (Figure~\ref{fig:main}). Top row (A--D): KM curves;
+        bottom row (E--H): per-interval $p$-value profiles.
   \item Benchmark: HCHG vs log-rank vs four weighted alternatives.
+  \item Three datasets use IPD reconstructed from published KM curves;
+        the CSL trial (Domain 4) has \emph{fully public} raw IPD.
   \item Full per-method p-value tables in Supplementary Data.
 \end{itemize}
 
@@ -311,7 +322,7 @@ print(result.test_statistic)  # HCHG statistic value
   \item Tarone-Ware: $p = 0.358$; Fleming-Harrington\,(1,1): $p = 0.256$
         (both NS).
   \item HCHG: $p = 0.002$ — flags both the early and late divergence
-        windows independently (Figure~\ref{fig:main}A,D).
+        windows independently (Figure~\ref{fig:main}A,E).
 \end{itemize}
 
 
@@ -341,7 +352,7 @@ print(result.test_statistic)  # HCHG statistic value
         tests (GW, PP) partially align but are diluted by the post-response
         null period.
   \item HCHG: $p = 0.012$; Fisher combination: $p = 0.020$
-        (Figure~\ref{fig:main}B,E).
+        (Figure~\ref{fig:main}B,F).
 \end{itemize}
 
 
@@ -374,21 +385,65 @@ print(result.test_statistic)  # HCHG statistic value
         weight captures the mid-to-late window unaffected by the null
         early period.
   \item HCHG: $p = 0.012$; Fisher: $p = 0.020$
-        (Figure~\ref{fig:main}C,F).
+        (Figure~\ref{fig:main}C,G).
   \item Validated by published subgroup analyses: significant DFS benefit
         in postmenopausal patients \citep{coleman2011,coleman2014}.
 \end{itemize}
 
 
+\subsection*{Domain 4 — Corticosteroid in cirrhosis: time-varying effect
+  (public IPD)}
+
+\textbf{Trial and data}
+\begin{itemize}
+  \item CSL trial \citep{csl_data}: prednisone ($n=226$) vs placebo
+        ($n=220$), histologically verified liver cirrhosis
+        (Copenhagen, 1962--69). 270 deaths.
+  \item Endpoint: overall survival. Follow-up up to $\sim$13 years.
+  \item \textbf{Raw IPD genuinely public} --- distributed in the CRAN
+        \texttt{timereg} package and the open SurvSet repository
+        \citep{survset2022}; \emph{not} reconstructed from a KM curve.
+  \item Note: source CSV is counting-process (long) format with a
+        time-varying prothrombin covariate; collapsed to one row per
+        patient (final follow-up time and status) for the two-sample test.
+\end{itemize}
+
+\textbf{Biological mechanism and survival pattern}
+\begin{itemize}
+  \item Corticosteroids have a time-varying effect in cirrhosis: early
+        harm (immunosuppression, infection, fluid retention) followed by
+        later anti-inflammatory benefit in actively inflamed subgroups.
+  \item Survival curves cross more than once; treatment effect concentrated
+        in a few non-contiguous windows (sign-changing).
+  \item Canonical non-PH dataset, widely used to illustrate
+        time-varying-coefficient models.
+\end{itemize}
+
+\textbf{Test results}
+\begin{itemize}
+  \item Log-rank: $p = 0.384$ (NS).
+  \item All four weighted alternatives: $p \geq 0.13$ (NS) —
+        Gehan-Wilcoxon $0.51$, Tarone-Ware $0.38$, Peto-Prentice $0.45$,
+        Fleming-Harrington\,(1,1) $0.14$.
+  \item HCHG: $p = 0.002$ (significant); Fisher: $p = 0.031$
+        (Figure~\ref{fig:main}D,H).
+  \item Demonstrates HCHG on genuinely public raw data, with a multi-window
+        sign-changing departure no single weight can capture.
+\end{itemize}
+
+
 \textbf{Cross-domain summary}
 \begin{itemize}
-  \item HCHG achieves $p \leq 0.013$ in all three domains;
-        log-rank and four weighted alternatives: $p \geq 0.26$ everywhere.
+  \item HCHG achieves $p \leq 0.013$ in all four domains;
+        log-rank and four weighted alternatives: $p \geq 0.13$ everywhere.
   \item GW and PP border significance in CheckMate~057 only — their
         early emphasis coincidentally aligns with that trial's crossing
         signal; this does not generalise to the other domains.
-  \item Fisher combination also significant in all three, consistent
+  \item Fisher combination also significant in all four, consistent
         with sparse localised signals. MinP significant in CheckMate~057.
+  \item The four patterns differ (early+late crossing, transient-early,
+        mid-to-late accumulated, multi-window sign-changing), yet HCHG
+        detects all without any per-dataset tuning.
 \end{itemize}
 
 
@@ -426,44 +481,50 @@ TODO.
 
 \section*{Data availability}
 \begin{itemize}
-  \item IPD for all three trials (CheckMate~057, COMET-1, AZURE)
-        reconstructed from published KM curves via \citet{guyot2012}
-        as implemented in the \texttt{kmdata} R package
-        (\url{https://github.com/raredd/kmdata}).
+  \item IPD for CheckMate~057, COMET-1, and AZURE reconstructed from
+        published KM curves via \citet{guyot2012} as implemented in the
+        \texttt{kmdata} R package (\url{https://github.com/raredd/kmdata}).
+  \item CSL liver-cirrhosis IPD is fully public: CRAN \texttt{timereg}
+        package (dataset \texttt{csl}) and the SurvSet repository
+        \citep{survset2022} (\url{https://github.com/ErikinBC/SurvSet}).
   \item All analysis code:
         \url{https://github.com/TODO/lifelines-hc/tree/main/AppNote}.
 \end{itemize}
 
 
 % =======================================================================
-%  Figure  (unchanged from main.tex)
+%  Figure  (4-domain version; adds CSL relative to main.tex)
 % =======================================================================
 
 \begin{figure*}[t!]
   \centering
-  \includegraphics[width=\textwidth]{figure1}
+  \includegraphics[width=\textwidth]{figure1_4dom}
   \caption{%
     \textbf{HCHG detects non-proportional hazard departures
-    across three biological domains with distinct temporal patterns.}
-    Top row: Kaplan-Meier curves with HCHG-flagged intervals (shaded).
-    Bottom row: per-interval $-\!\log_{10}$(hypergeometric p-value);
-    bars exceeding the HC threshold (dashed, permutation-calibrated)
-    are highlighted in red.
+    across four clinical datasets with distinct temporal patterns.}
+    Top row (A--D): Kaplan-Meier curves with HCHG-flagged intervals
+    (shaded). Bottom row (E--H): per-interval
+    $-\!\log_{10}$(hypergeometric p-value); bars exceeding the HC threshold
+    (dashed, permutation-calibrated) are highlighted in red.
     %
-    \textbf{(A,D)}~CheckMate~057 PFS (nivolumab vs.\ docetaxel, $n=582$);
+    \textbf{(A,E)}~CheckMate~057 PFS (nivolumab vs.\ docetaxel, $n=582$);
     log-rank $p=0.351$, HCHG $p=0.002$. Curves cross at $\sim\!3$ months
     before nivolumab gains a durable late advantage.
     %
-    \textbf{(B,E)}~COMET-1 OS (cabozantinib vs.\ prednisone, $n=1028$);
-    log-rank $p=0.262$, HCHG $p=0.012$. Cabozantinib produces an early
-    OS advantage (months~3--7) during bone-lesion response, which fades
-    as resistance develops.
+    \textbf{(B,F)}~COMET-1 OS (cabozantinib vs.\ prednisone, $n=1028$);
+    log-rank $p=0.262$, HCHG $p=0.012$. Early OS advantage (months~3--7)
+    during bone-lesion response, fading as resistance develops.
     %
-    \textbf{(C,F)}~AZURE DFS (zoledronic acid vs.\ control, $n=3359$);
+    \textbf{(C,G)}~AZURE DFS (zoledronic acid vs.\ control, $n=3359$);
     log-rank $p=0.305$, HCHG $p=0.012$. Menopause-dependent benefit
     accumulates in months~20--60.
-    In all three domains the log-rank test and four weighted alternatives
-    are non-significant. Individual patient data reconstructed
+    %
+    \textbf{(D,H)}~CSL OS (prednisone vs.\ placebo, liver cirrhosis,
+    $n=446$); log-rank $p=0.384$, HCHG $p=0.002$. Time-varying
+    corticosteroid effect with multiple curve crossings; \emph{fully
+    public} raw IPD (CRAN \texttt{timereg} / SurvSet).
+    In all four datasets the log-rank test and four weighted alternatives
+    are non-significant. For the first three, IPD reconstructed
     via \citet{guyot2012}.%
   }
   \label{fig:main}
