@@ -16,6 +16,14 @@ This repository has been cleaned to include only the code needed to reproduce th
 Auxiliary or unrelated materials have been moved to `archive/` and are excluded from the repository.
 
 
+## Software package
+
+The `lifelines-hc` Python package (the `higher_criticism_test` / HCHG
+implementation and the Application Note analysis code) lives in its own
+repository: **https://github.com/alonkipnis/lifelines-hc**
+(`pip install lifelines-hc`).
+
+
 ## Environment
 
 Python 3.8+ is recommended. On Apple Silicon macOS, prefer a native arm64 environment (e.g., conda/mamba) to avoid binary wheel mismatches.
