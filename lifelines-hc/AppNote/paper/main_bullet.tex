@@ -108,8 +108,9 @@
         COMET-1 OS ($n=1028$), AZURE DFS ($n=3359$), and the CSL
         liver-cirrhosis trial ($n=446$) — the last with fully public
         individual patient data.
-  \item HCHG: $p \leq 0.013$ in all four; log-rank and four weighted
-        alternatives: $p \geq 0.13$ in all four.
+  \item HCHG: $p \leq 0.014$ in all four. Log-rank non-significant
+        throughout ($p \geq 0.26$); among the weighted tests only
+        Gehan-Wilcoxon and Peto-Prentice on CheckMate~057 reach $p<0.05$.
 \end{itemize}
 \textbf{Availability and Implementation:}
 \begin{itemize}
@@ -229,8 +230,8 @@ yielding a one-sided p-value $p_k$ per interval.
 \begin{itemize}
   \item $\gamma \in (0,1)$, default $0.2$: restricts scanning to the
         most extreme fraction of p-values \citep{donoho2004}.
-  \item Global p-value: label permutation ($n_\mathrm{perms}=500$
-        by default).
+  \item Global p-value: label permutation ($n_\mathrm{perms}=2000$
+        in the analyses reported here).
   \item Two-sided: use $\min$ of two one-sided $p_k$ in place of $p_k$.
 \end{itemize}
 
@@ -265,7 +266,7 @@ from lifelines_hc import (higher_criticism_test,
 result = higher_criticism_test(
     T_A, T_B,
     event_observed_A=E_A, event_observed_B=E_B,
-    n_intervals_to_pool=100, n_permutations=500,
+    n_intervals_to_pool=100, n_permutations=2000,
     alternative='both', gamma=0.2, seed=42)
 
 print(result.p_value)       # permutation-calibrated p-value
@@ -321,7 +322,7 @@ print(result.test_statistic)  # HCHG statistic value
         crossing; not a general signal.
   \item Tarone-Ware: $p = 0.358$; Fleming-Harrington\,(1,1): $p = 0.256$
         (both NS).
-  \item HCHG: $p = 0.002$ — flags both the early and late divergence
+  \item HCHG: $p = 0.001$ — flags both the early and late divergence
         windows independently (Figure~\ref{fig:main}A,E).
 \end{itemize}
 
@@ -351,7 +352,7 @@ print(result.test_statistic)  # HCHG statistic value
   \item All four weighted alternatives: $p \geq 0.19$ (NS) — early-weighted
         tests (GW, PP) partially align but are diluted by the post-response
         null period.
-  \item HCHG: $p = 0.012$; Fisher combination: $p = 0.020$
+  \item HCHG: $p = 0.014$; Fisher combination: $p = 0.028$
         (Figure~\ref{fig:main}B,F).
 \end{itemize}
 
@@ -384,7 +385,7 @@ print(result.test_statistic)  # HCHG statistic value
   \item All four weighted alternatives: $p \geq 0.28$ (NS) — no fixed
         weight captures the mid-to-late window unaffected by the null
         early period.
-  \item HCHG: $p = 0.012$; Fisher: $p = 0.020$
+  \item HCHG: $p = 0.005$; Fisher: $p = 0.004$
         (Figure~\ref{fig:main}C,G).
   \item Validated by published subgroup analyses: significant DFS benefit
         in postmenopausal patients \citep{coleman2011,coleman2014}.
@@ -425,7 +426,7 @@ print(result.test_statistic)  # HCHG statistic value
   \item All four weighted alternatives: $p \geq 0.13$ (NS) —
         Gehan-Wilcoxon $0.51$, Tarone-Ware $0.38$, Peto-Prentice $0.45$,
         Fleming-Harrington\,(1,1) $0.14$.
-  \item HCHG: $p = 0.002$ (significant); Fisher: $p = 0.031$
+  \item HCHG: $p = 0.002$ (significant); Fisher: $p = 0.034$
         (Figure~\ref{fig:main}D,H).
   \item Demonstrates HCHG on genuinely public raw data, with a multi-window
         sign-changing departure no single weight can capture.
@@ -434,13 +435,15 @@ print(result.test_statistic)  # HCHG statistic value
 
 \textbf{Cross-domain summary}
 \begin{itemize}
-  \item HCHG achieves $p \leq 0.013$ in all four domains;
-        log-rank and four weighted alternatives: $p \geq 0.13$ everywhere.
-  \item GW and PP border significance in CheckMate~057 only — their
-        early emphasis coincidentally aligns with that trial's crossing
-        signal; this does not generalise to the other domains.
+  \item HCHG achieves $p \leq 0.014$ in all four domains; log-rank is
+        non-significant throughout ($p \geq 0.26$).
+  \item GW ($p=0.041$) and PP ($p=0.049$) reach $p<0.05$ in CheckMate~057
+        only — the sole weighted results below $0.05$; elsewhere all
+        weighted tests $p \geq 0.13$. Their early emphasis coincidentally
+        aligns with that trial's crossing signal and does not generalise.
   \item Fisher combination also significant in all four, consistent
-        with sparse localised signals. MinP significant in CheckMate~057.
+        with sparse localised signals. MinP significant in CheckMate~057
+        and AZURE.
   \item The four patterns differ (early+late crossing, transient-early,
         mid-to-late accumulated, multi-window sign-changing), yet HCHG
         detects all without any per-dataset tuning.
@@ -511,23 +514,23 @@ TODO.
     the intervals shaded above.
     %
     \textbf{(A,E)}~CheckMate~057 PFS (nivolumab vs.\ docetaxel, $n=582$);
-    log-rank $p=0.351$, HCHG $p=0.002$. Curves cross at $\sim\!3$ months
+    log-rank $p=0.351$, HCHG $p=0.001$. Curves cross at $\sim\!3$ months
     before nivolumab gains a durable late advantage.
     %
     \textbf{(B,F)}~COMET-1 OS (cabozantinib vs.\ prednisone, $n=1028$);
-    log-rank $p=0.262$, HCHG $p=0.012$. Early OS advantage (months~3--7)
+    log-rank $p=0.262$, HCHG $p=0.014$. Early OS advantage (months~3--7)
     during bone-lesion response, fading as resistance develops.
     %
     \textbf{(C,G)}~AZURE DFS (zoledronic acid vs.\ control, $n=3359$);
-    log-rank $p=0.305$, HCHG $p=0.012$. Menopause-dependent benefit
+    log-rank $p=0.305$, HCHG $p=0.005$. Menopause-dependent benefit
     accumulates in months~20--60.
     %
     \textbf{(D,H)}~CSL OS (prednisone vs.\ placebo, liver cirrhosis,
     $n=446$); log-rank $p=0.384$, HCHG $p=0.002$. Time-varying
     corticosteroid effect with multiple curve crossings; \emph{fully
     public} raw IPD (CRAN \texttt{timereg} / SurvSet).
-    In all four datasets the log-rank test and four weighted alternatives
-    are non-significant. For the first three, IPD reconstructed
+    In every dataset the log-rank test is non-significant while HCHG is
+    significant. For the first three, IPD reconstructed
     via \citet{guyot2012}.%
   }
   \label{fig:main}

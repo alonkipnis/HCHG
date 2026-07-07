@@ -55,7 +55,7 @@ N_INTERVALS_IO    = 60   # immuno-oncology  (~1 bin/month for 30-mo PFS)
 N_INTERVALS_AZURE = 80   # bisphosphonate   (~1.5-month bins, 120-mo follow-up)
 N_INTERVALS_COMET = 80   # targeted therapy (~0.3-month bins, 22-mo OS)
 N_INTERVALS_CSL   = 50   # corticosteroid   (~0.25-year bins, 13-yr OS)
-N_PERMS           = 500
+N_PERMS           = 2000
 
 
 # ---------------------------------------------------------------------------

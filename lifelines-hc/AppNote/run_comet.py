@@ -19,7 +19,7 @@ Biological context:
   but is detectable by HC, which scans for any localised excess.
 
 Statistical consequence (COMET-1, OS endpoint):
-  Log-rank p = 0.262 (NS)   HC p ≈ 0.010 (significant)
+  Log-rank p = 0.262 (NS)   HCHG p ≈ 0.014 (significant)
   All four NPH-weighted alternatives: p ≥ 0.19 (all NS)
 
 Dataset:
@@ -56,7 +56,7 @@ DATA_DIR    = SCRIPT_DIR / "data"
 FIGS_DIR    = SCRIPT_DIR / "figs"
 RES_DIR     = SCRIPT_DIR / "results"
 N_INTERVALS = 80
-N_PERMS     = 500
+N_PERMS     = 2000
 
 for d in (FIGS_DIR, RES_DIR):
     d.mkdir(parents=True, exist_ok=True)

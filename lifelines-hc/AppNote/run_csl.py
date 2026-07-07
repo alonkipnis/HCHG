@@ -62,7 +62,7 @@ DATA_DIR    = SCRIPT_DIR / "data"
 FIGS_DIR    = SCRIPT_DIR / "figs"
 RES_DIR     = SCRIPT_DIR / "results"
 N_INTERVALS = 50
-N_PERMS     = 1000   # small dataset; use more permutations for a stable p-value
+N_PERMS     = 2000
 
 for d in (FIGS_DIR, RES_DIR):
     d.mkdir(parents=True, exist_ok=True)
