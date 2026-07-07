@@ -62,9 +62,10 @@
 
 % ---- authors ----
 \author[1,$\ast$]{Alon Kipnis}
-\author[2]{Zohar Yakhini}
+\author[2]{Ben Galili}
+\author[3]{Zohar Yakhini}
 
-\authormark{Kipnis and Yakhini}
+\authormark{Kipnis, Galili and Yakhini}
 
 \address[1]{%
   \orgdiv{School of Computer Science},
@@ -88,14 +89,11 @@
 \abstract{%
 \textbf{Motivation:}
 \begin{itemize}
-  \item Log-rank has good power against many alternatives, but
-        \citet{kipnis_biometrika} showed it is \emph{not} optimal
-        against sparse hazard departures — concentrated differences
-        in a few intervals at \emph{unknown} locations.
-  \item Weighted log-rank alternatives (Gehan-Wilcoxon, Tarone-Ware,
-        Peto-Prentice, Fleming-Harrington) each pre-specify a temporal
-        emphasis and are insensitive to sparse departures outside that
-        window.
+      \item We propse a survival test that is specifically designed to detect hazard departures concentrated in a small number of time intervals.
+      \item Namely, test the existance of a few hot spots in time where one group has a higher hazard than the other. 
+      \item The log-rank test and other weighted alternatives such as (Gehan-Wilcoxon, Tarone-Ware,
+      Peto-Prentice, Fleming-Harrington) are not generally powerful against such departures. \citep{kipnis_biometrika}
+      \item Like the log-rank test, our test can accomodate right-censored data. 
 \end{itemize}
 \textbf{Results:}
 \begin{itemize}
@@ -129,18 +127,19 @@
 \section{Introduction}
 % =======================================================================
 
-\textbf{Background: log-rank and its limitation}
+\textbf{Background: Limitations of existing methods}
 \begin{itemize}
-  \item Kaplan-Meier \citep{kaplan1958} and log-rank \citep{mantel1966}
-        are the standard tools for two-sample survival comparison.
-  \item \citet{schoenfeld1981}: log-rank is asymptotically optimal
-        against proportional-hazards (PH) alternatives.
-  \item \citet{kipnis_biometrika}: log-rank is \emph{not} optimal
-        against \textbf{sparse} hazard departures — hazard differences
-        confined to a small, \emph{unknown} subset of time intervals.
+  \item Log-rank \citep{mantel1966} is the standard work horse for two-sample survival comparison because it can rigorously accomodate right-censored data and is asymptotically optimal against proportional-hazards alternatives \citep{schoenfeld1981}.
+  \item However, the log-rank is not optimal against sparse hazard departures. \citep{kipnis_biometrika}, i.e.,  hazard differences
+        confined to a small, \emph{unknown} subset of time intervals. 
+ \item Other alternatives based on moment weighting such as (Gehan-Wilcoxon, Tarone-Ware,
+        Peto-Prentice, Fleming-Harrington) may each be powerful agains the specific departure pattern determined by their temporal weight, but are not generally powerful against sparse departures; see the discussion and analysis in \citep{kipnis_biometrika}.  
+      \item Other methods such as KONP, and data-driven approaches still do attain sensitivity to sparse departures. 
 \end{itemize}
 
+
 \textbf{Motivating biological examples of sparse departures}
+Below are three real-world examples of data thought to exhibit sparse hazard departures.
 \begin{itemize}
   \item \textit{Crossing curves (immuno-oncology):} PD-1 inhibitors
         require an immune-priming phase; hazard excess is confined to
@@ -157,29 +156,29 @@
         AZURE trial \citep{coleman2011}.
 \end{itemize}
 
-\textbf{Existing non-PH alternatives and their limitation}
-\begin{itemize}
-  \item Weighted log-rank family: Gehan-Wilcoxon \citep{gehan1965},
-        Peto-Prentice \citep{peto1972}, Tarone-Ware \citep{taroneware1977},
-        Fleming-Harrington \citep{flemingharrington1991}.
-  \item Each applies a fixed temporal weight (early / mid / late emphasis).
-  \item Requires knowing \emph{a priori} where the hazard departure will
-        occur — not suitable for the unknown-location sparse setting.
-  \item All four can simultaneously miss a sparse departure if its location
-        falls outside the intended window (demonstrated below).
-\end{itemize}
+% \textbf{Existing non-PH alternatives and their limitation}
+% \begin{itemize}
+%   \item Weighted log-rank family: Gehan-Wilcoxon \citep{gehan1965},
+%         Peto-Prentice \citep{peto1972}, Tarone-Ware \citep{taroneware1977},
+%         Fleming-Harrington \citep{flemingharrington1991}.
+%   \item Each applies a fixed temporal weight (early / mid / late emphasis).
+%   \item Requires knowing \emph{a priori} where the hazard departure will
+%         occur — not suitable for the unknown-location sparse setting.
+%   \item All four can simultaneously miss a sparse departure if its location
+%         falls outside the intended window (demonstrated below).
+% \end{itemize}
 
 \textbf{The HCHG test and the present work}
 \begin{itemize}
   \item \citet{kipnis_biometrika} proposed HCHG: the HC statistic of
-        \citet{donoho2004} applied to per-interval HyperGeometric (HG)
+        \citet{donoho2004,donoho2015special} applied to per-interval HyperGeometric (HG)
         p-values from survival data.
   \item Designed specifically for sparse departures at unknown locations;
         no pre-specified temporal weight.
-  \item No accessible Python implementation existed.
-  \item \textbf{This paper:} \texttt{lifelines-hc} extends
-        \texttt{lifelines} \citep{davidsonpilon2019} with HCHG and
-        supporting diagnostics.
+\item The method can accomodate right-censored data. 
+\item \textbf{This paper:} \texttt{lifelines-hc} extends
+\texttt{lifelines} \citep{davidsonpilon2019} with HCHG and
+supporting diagnostics.
 \end{itemize}
 
 
@@ -219,8 +218,8 @@ yielding a one-sided p-value $p_k$ per interval.
 \end{equation}
 %
 \begin{itemize}
-  \item $\gamma \in (0,1)$, default $0.2$: restricts scanning to the
-        most extreme fraction of p-values \citep{donoho2004}.
+  \item $\gamma \in (0,1)$, default $0.5$: restricts scanning to the
+        most extreme fraction of p-values \citep{donoho2015special}.
   \item Global p-value: label permutation ($n_\mathrm{perms}=500$
         by default).
   \item Two-sided: use $\min$ of two one-sided $p_k$ in place of $p_k$.
@@ -380,7 +379,7 @@ print(result.test_statistic)  # HCHG statistic value
 \end{itemize}
 
 
-\textbf{Cross-domain summary}
+\textbf{Summary}
 \begin{itemize}
   \item HCHG achieves $p \leq 0.013$ in all three domains;
         log-rank and four weighted alternatives: $p \geq 0.26$ everywhere.
@@ -402,6 +401,7 @@ print(result.test_statistic)  # HCHG statistic value
         unknown temporal locations.
   \item Unlike weighted log-rank tests, HCHG requires no a priori
         specification of where the hazard departure occurs.
+  \item Unlike data-driven approaches \cite{yang2010improved}, HCHG does not require a calibration/training step. 
   \item Diagnostic output (\texttt{suspected\_deviations()}) identifies
         which time windows drive the signal.
   \item Fisher combination and MinP provided as complementary omnibus
@@ -475,6 +475,6 @@ TODO.
 % =======================================================================
 
 \bibliographystyle{plainnat}
-\bibliography{refs}
+\bibliography{references}
 
 \end{document}
