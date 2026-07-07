@@ -40,7 +40,7 @@ DATA_DIR  = SCRIPT_DIR / "data"
 FIGS_DIR  = SCRIPT_DIR / "figs"
 RES_DIR   = SCRIPT_DIR / "results"
 N_INTERVALS = 60   # ~1 bin per 0.5 months (30-month follow-up)
-N_PERMS     = 500
+N_PERMS     = 2000
 
 for d in (FIGS_DIR, RES_DIR):
     d.mkdir(parents=True, exist_ok=True)

@@ -20,7 +20,7 @@ Statistical consequence:
   Log-rank (and all four weighted NPH alternatives) average over the entire
   follow-up and are unable to separate the null early period from the beneficial
   late period, yielding p ≈ 0.30.  HC detects the localized intervals of hazard
-  divergence: p ≈ 0.007.
+  divergence: p ≈ 0.005.
 
 Data source: AppNote/data/AZURE_2A.csv  (run 01_get_kmdata.py first)
   Columns: time (months), event (0/1), arm (control / zoledronic_acid)
@@ -52,7 +52,7 @@ DATA_DIR    = SCRIPT_DIR / "data"
 FIGS_DIR    = SCRIPT_DIR / "figs"
 RES_DIR     = SCRIPT_DIR / "results"
 N_INTERVALS = 80   # ~1.5-month bins over 120-month follow-up
-N_PERMS     = 500
+N_PERMS     = 2000
 
 for d in (FIGS_DIR, RES_DIR):
     d.mkdir(parents=True, exist_ok=True)
